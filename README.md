@@ -19,5 +19,5 @@ You can play with the [Live Demo](https://chatbotv01.streamlit.app/) here
 ## Features
 
 1. The nature of visualization will be comparative always
-2. The visualizations are interactive because the visualizations generated are primarily in D3.js
+2. The visualizations are interactive because they are generated in D3.js
 3. The user needs no coding experience to generate these visualizations
