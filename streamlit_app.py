@@ -461,8 +461,8 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
         return refine_d3_code(cleaned_code, api_key)
 
 def main():
-    st.set_page_config(page_title="🎨 D3.js Visualization Generator", page_icon="✨", layout="wide")
-    st.title("🎨 D3.js Visualization Generator")
+    st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
+    st.title("🎨 Comparative Visualization Generator")
 
     api_key = get_api_key()
 
