@@ -1,1 +1,1 @@
-# Comparative-Visualization-Generator
+# Comparative Visualization Generator
