@@ -184,23 +184,92 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
 
-    Critical Requirements:
+
+    Critical Requirements for D3.js Visualization:
+
     1. Create a function named createVisualization(data, svgElement)
-    2. Include a legend clearly indicating which color represents which data source, entity or category
-    3. Solve the overlapping labels problem:
-       - Rotate labels if necessary (e.g., 45-degree angle)
-       - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-    4. Ensure proper axis formatting and scaling:
-       - Set appropriate margins to accommodate all axis labels (e.g., left margin of at least 100px for y-axis labels)
-       - Use d3.format() to format y-axis labels (e.g., use commas for thousands)
-       - Adjust the y-axis domain to start from 0 and extend slightly above the maximum value
-       - Ensure y-axis ticks are evenly spaced and all labels are fully visible
-    5. Add tooltips showing full information on hover
-    6. Ensure appropriate spacing between bars or data points
-    7. Implement responsive design to fit various screen sizes
-    8. Include smooth transitions for any data updates
-    9. if the user request sounds like an update request for the previous D3 code, then update the provided code and return it in its entirety else return a new code in its entirety.
-    10. You must absolutely comply with the user request intelligently
+
+    2. Set up an advanced SVG canvas:
+    - Define margins using const margin = {top: 40, right: 100, bottom: 80, left: 100}
+    - Set width and height: const width = 1200 - margin.left - margin.right, height = 700 - margin.top - margin.bottom
+    - Create an SVG element with d3.select(svgElement).attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+    - Add a subtle background with svg.append("rect").attr("width", width).attr("height", height).attr("fill", "#f8f9fa").attr("rx", 10).attr("ry", 10)
+
+    3. Implement sophisticated scales:
+    - X-axis: const xScale = d3.scaleBand().domain(data.map(d => d.x)).range([0, width]).padding(0.1)
+    - Y-axis: const yScale = d3.scaleLinear().domain([0, d3.max(data, d => d.y) * 1.1]).range([height, 0])
+    - Color: const colorScale = d3.scaleOrdinal(d3.schemePastel1)
+
+    4. Create an animated area and line chart:
+    - Define area: const area = d3.area().x(d => xScale(d.x) + xScale.bandwidth() / 2).y0(height).y1(d => yScale(d.y)).curve(d3.curveMonotoneX)
+    - Add gradient: Use svg.append("defs").append("linearGradient") for a beautiful gradient fill
+    - Animate line: Use path.attr("stroke-dasharray", totalLength).attr("stroke-dashoffset", totalLength).transition().duration(2000).attr("stroke-dashoffset", 0)
+
+    5. Add interactive axes with proper formatting:
+    - X-axis: svg.append("g").attr("class", "x axis").attr("transform", `translate(0,${height})`).call(d3.axisBottom(xScale))
+    - Y-axis: svg.append("g").attr("class", "y axis").call(d3.axisLeft(yScale).tickFormat(d3.format(',.1f')).ticks(10))
+    - Rotate x-axis labels if needed: .selectAll("text").style("text-anchor", "end").attr("dx", "-.8em").attr("dy", ".15em").attr("transform", "rotate(-45)")
+
+    6. Implement highly interactive data points:
+    - Create dots: svg.selectAll(".dot").data(data).enter().append("circle")
+    - Add hover effects: .on("mouseover", function(event, d) { d3.select(this).transition().duration(300).attr("r", 8) })
+    - Implement smooth transitions: .transition().delay((d, i) => i * 50).duration(500).attr("r", 5)
+
+    7. Design an informative and interactive tooltip:
+    - Create tooltip: const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0)
+    - Show on hover: function showTooltip(event, d) { tooltip.transition().duration(200).style("opacity", .9).html(`...`).style("left", `${event.pageX}px`).style("top", `${event.pageY}px`) }
+
+    8. Create a dynamic and interactive legend:
+    - Legend group: const legend = svg.append("g").attr("class", "legend").attr("transform", `translate(${width + 20}, 0)`)
+    - Legend items: legend.selectAll(".legend-item").data(colorScale.domain()).enter().append("g")
+    - Add interactivity: .on("mouseover", highlightCategory).on("mouseout", resetHighlight)
+
+    9. Implement advanced responsive design:
+    - Create resize function: function resize() { ... }
+    - Update all elements: xScale.range([0, newWidth]), yScale.range([height, 0]), svg.select(".x.axis").call(xAxis), ...
+    - Attach to window: d3.select(window).on("resize", resize)
+
+    10. Enhance visual appeal with animations and transitions:
+        - Use d3.transition() for smooth updates: svg.selectAll(".dot").transition().duration(750).attr("cx", d => xScale(d.x))
+        - Implement enter/exit animations: .enter().append("circle").attr("r", 0).transition().duration(500).attr("r", 5)
+
+    11. Optimize performance:
+        - Use d3.select() instead of d3.selectAll() when possible
+        - Implement data joins efficiently: svg.selectAll(".dot").data(data, d => d.id)
+        - Use requestAnimationFrame for smooth animations
+
+    12. Ensure accessibility and readability:
+        - Add ARIA labels: svg.attr("aria-label", "Data Visualization")
+        - Use d3-textwrap for long labels: d3.textwrap().bounds({width: 100, height: 50})
+
+    13. Implement zooming and panning:
+        - Create zoom behavior: const zoom = d3.zoom().scaleExtent([1, 8]).on("zoom", zoomed)
+        - Apply zoom: svg.call(zoom)
+
+    14. Add crosshair effect for precise data reading:
+        - Create crosshair lines: const crosshairX = svg.append("line"), crosshairY = svg.append("line")
+        - Update on mouse move: svg.on("mousemove", updateCrosshair)
+
+    15. Implement brush for range selection:
+        - Create brush: const brush = d3.brushX().extent([[0, 0], [width, height]])
+        - Apply brush: svg.append("g").attr("class", "brush").call(brush)
+
+    16. Implement smooth color transitions:
+        - Use d3.interpolateRgb for color transitions: .transition().duration(750).attr("fill", d => d3.interpolateRgb(oldColor, newColor)(t))
+
+    17. Add engaging micro-interactions:
+        - Implement click-to-lock tooltip: .on("click", lockTooltip)
+        - Add hover effects on legend items: .on("mouseover", highlightCategory)
+
+    18. Ensure the visualization works with various data structures and handles edge cases gracefully:
+        - Implement error checking: if (!Array.isArray(data) || data.length === 0) { throw new Error("Invalid data format") }
+        - Handle missing data: .defined(d => !isNaN(d.value))
+
+    19. Provide options for different chart types (line, bar, scatter, etc.) based on the data structure
+
+    20. Include clear and concise code comments explaining complex operations
+
+    21. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
 
     Data Schema:
     {schema_str}
