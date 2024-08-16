@@ -317,10 +317,7 @@ def clean_d3_response(response: str) -> str:
 
 def display_visualization(d3_code: str):
     """
-    Display the D3.js visualization using an iframe.
-    
-    This function creates an iframe with the D3.js visualization code
-    and displays it within the Streamlit app without creating any external files.
+    Display the D3.js visualization using an iframe with improved error handling and flexibility.
     
     Args:
         d3_code (str): The D3.js code to be executed.
@@ -330,23 +327,36 @@ def display_visualization(d3_code: str):
     <html>
     <head>
         <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            #visualization {{
+                width: 100%;
+                height: 100vh;
+            }}
+        </style>
     </head>
     <body>
         <div id="visualization"></div>
         <script>
-            {d3_code}
-            // Create the SVG element
-            const svgElement = d3.select("#visualization")
-                .append("svg")
-                .attr("width", 800)
-                .attr("height", 500)
-                .node();
-            
-            // Get the data from the parent window
-            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-            
-            // Call the createVisualization function
-            createVisualization(vizData, svgElement);
+            try {{
+                {d3_code}
+                // Create the SVG element with responsive dimensions
+                const svgElement = d3.select("#visualization")
+                    .append("svg")
+                    .attr("width", "100%")
+                    .attr("height", "100%")
+                    .attr("viewBox", "0 0 800 500")
+                    .attr("preserveAspectRatio", "xMidYMid meet")
+                    .node();
+                
+                // Get the data from the parent window
+                const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+                
+                // Call the createVisualization function
+                createVisualization(vizData, svgElement);
+            }} catch (error) {{
+                console.error("Error in D3 visualization:", error);
+                document.body.innerHTML = `<p>Error rendering visualization: ${{error.message}}</p>`;
+            }}
         </script>
     </body>
     </html>
@@ -357,7 +367,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=800, height=500, scrolling=True)
+                            width="100%", height=600, scrolling=True)
 
 def generate_fallback_visualization() -> str:
     """
