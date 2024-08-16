@@ -184,18 +184,21 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     Critical Requirements:
     1. Create a function named createVisualization(data, svgElement)
-    2. Implement a bar chart that explicitly compares data from two CSV files:
-       - Use side-by-side bars for each category (e.g., city)
-       - Use different colors for each data source (CSV file 1 and CSV file 2)
-       - Include a legend clearly indicating which color represents which data source
+    2. Include a legend clearly indicating which color represents which data source, entity or category
     3. Solve the overlapping labels problem:
        - Rotate labels if necessary (e.g., 45-degree angle)
        - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-    4. Add tooltips showing full information on hover
-    5. Ensure appropriate spacing between bars or data points
-    6. Implement responsive design to fit various screen sizes
-    7. Include smooth transitions for any data updates
-    8. if the user request sounds like an update request for the previous D3 code, then update the provided code and return it in its entirety else return a new code in its entirety.
+    4. Ensure proper axis formatting and scaling:
+       - Set appropriate margins to accommodate all axis labels (e.g., left margin of at least 100px for y-axis labels)
+       - Use d3.format() to format y-axis labels (e.g., use commas for thousands)
+       - Adjust the y-axis domain to start from 0 and extend slightly above the maximum value
+       - Ensure y-axis ticks are evenly spaced and all labels are fully visible
+    5. Add tooltips showing full information on hover
+    6. Ensure appropriate spacing between bars or data points
+    7. Implement responsive design to fit various screen sizes
+    8. Include smooth transitions for any data updates
+    9. if the user request sounds like an update request for the previous D3 code, then update the provided code and return it in its entirety else return a new code in its entirety.
+    10. You must absolutely comply with the user request intelligently
 
     Data Schema:
     {schema_str}
