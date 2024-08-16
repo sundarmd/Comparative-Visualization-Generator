@@ -175,6 +175,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
+    d3_code = ""
+
     client = OpenAI(api_key=api_key)
     
     base_prompt = f"""
