@@ -265,6 +265,9 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     19. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
 
+    20. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
+
+
     Data Schema:
     {schema_str}
 
