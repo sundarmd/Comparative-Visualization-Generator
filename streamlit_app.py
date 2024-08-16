@@ -328,6 +328,11 @@ def display_visualization(d3_code: str):
     <head>
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <style>
+            body, html {{
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }}
             #visualization {{
                 width: 100%;
                 height: 100vh;
@@ -337,26 +342,17 @@ def display_visualization(d3_code: str):
     <body>
         <div id="visualization"></div>
         <script>
-            try {{
-                {d3_code}
-                // Create the SVG element with responsive dimensions
-                const svgElement = d3.select("#visualization")
-                    .append("svg")
-                    .attr("width", "100%")
-                    .attr("height", "100%")
-                    .attr("viewBox", "0 0 800 500")
-                    .attr("preserveAspectRatio", "xMidYMid meet")
-                    .node();
-                
-                // Get the data from the parent window
-                const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-                
-                // Call the createVisualization function
-                createVisualization(vizData, svgElement);
-            }} catch (error) {{
-                console.error("Error in D3 visualization:", error);
-                document.body.innerHTML = `<p>Error rendering visualization: ${{error.message}}</p>`;
-            }}
+            {d3_code}
+            const svgElement = d3.select("#visualization")
+                .append("svg")
+                .attr("width", 1000)
+                .attr("height", 600)
+                .attr("viewBox", "0 0 1000 600")
+                .attr("preserveAspectRatio", "xMidYMid meet")
+                .node();
+            
+            const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+            createVisualization(data, svgElement);
         </script>
     </body>
     </html>
@@ -365,26 +361,11 @@ def display_visualization(d3_code: str):
     # Encode the data to pass it to the iframe
     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
     
-    # Create a container with custom CSS for the iframe
-    st.markdown("""
-        <style>
-        .iframe-container {
-            width: 100%;
-            height: 600px;
-        }
-        .iframe-container iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-        </style>
-        <div class="iframe-container">
-            <iframe src="data:text/html;charset=utf-8,{encoded_html}#{encoded_data}" scrolling="yes"></iframe>
-        </div>
-    """.format(
-        encoded_html=urllib.parse.quote(html_content),
-        encoded_data=encoded_data
-    ), unsafe_allow_html=True)
+    # Create the full URL for the iframe
+    iframe_url = f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
+    
+    # Display the iframe
+    st.components.v1.iframe(src=iframe_url, width=1000, height=600, scrolling=False)
 
 def generate_fallback_visualization() -> str:
     """
@@ -519,8 +500,13 @@ def main():
 
         if 'current_viz' in st.session_state:
             st.subheader("Current Visualization")
-            with st.spinner("Preparing visualization..."):
-                display_visualization(st.session_state.current_viz)
+            try:
+                with st.spinner("Preparing visualization..."):
+                    display_visualization(st.session_state.current_viz)
+            except Exception as e:
+                st.error(f"An error occurred while displaying the visualization: {str(e)}")
+                st.error("Please check the D3.js code for any issues.")
+                st.code(st.session_state.current_viz, language="javascript")
 
             with st.expander("View/Edit Visualization Code"):
                 code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
