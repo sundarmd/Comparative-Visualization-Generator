@@ -366,8 +366,12 @@ def display_visualization(d3_code: str):
     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
     
     # Display the iframe with the encoded data in the URL hash
-    st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width="100%", height=600, scrolling=True)
+    st.components.v1.iframe(
+        src=f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
+        width="800",  # Changed from "100%" to a fixed width
+        height=600,
+        scrolling=True
+    )
 
 def generate_fallback_visualization() -> str:
     """
