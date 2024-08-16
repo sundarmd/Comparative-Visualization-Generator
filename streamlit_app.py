@@ -195,6 +195,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     5. Ensure appropriate spacing between bars or data points
     6. Implement responsive design to fit various screen sizes
     7. Include smooth transitions for any data updates
+    8. if the user request sounds like an update request for the previous D3 code, then update the provided code and return it in its entirety else return a new code in its entirety.
 
     Data Schema:
     {schema_str}
@@ -202,13 +203,16 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Sample Data:
     {json.dumps(data_sample[:5], indent=2)}
 
-    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
+    Previous D3 Code:
+    {d3_code}
+
+    User Request:
+    {user_input}
+
+    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code. If the user request sounds like an update to the previous code, modify and return the entire updated code. Otherwise, generate and return entirely new code.
     """
     
-    if user_input:
-        prompt = f"{base_prompt}\n\nAdditional User Requirements:\n{user_input}"
-    else:
-        prompt = base_prompt
+    prompt = base_prompt
     
     try:
         response = client.chat.completions.create(
