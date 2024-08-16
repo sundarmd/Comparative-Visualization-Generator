@@ -188,25 +188,34 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Critical Requirements for D3.js Visualization:
 
     1. Create a function named createVisualization(data, svgElement)
-    2. Set up an SVG canvas with margins, width, and height as specified.
-    3. Create scales for x-axis, y-axis, and color.
-    4. Implement an animated area chart with gradient fill.
-    5. Add an animated line chart on top of the area chart.
-    6. Create interactive axes with proper formatting and rotated labels if needed.
-    7. Implement interactive data points with hover effects and smooth transitions.
-    8. Design an informative tooltip that appears on hover and can be locked on click.
-    9. Create a dynamic and interactive legend that highlights data on hover.
-    10. Implement zooming and panning functionality.
-    11. Add a crosshair effect for precise data reading.
-    12. Implement a brush for range selection.
-    13. Ensure smooth color transitions and micro-interactions.
-    14. Include error checking for invalid data formats and handle missing data.
-    15. Optimize performance using efficient D3 methods and requestAnimationFrame.
-    16. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
-    17. Implement responsive design that adjusts to window resizing.
-    18. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
-    19. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
-    20. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
+    2. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
+    3. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
+    4. Add a subtle background rectangle with rounded corners
+    5. Create scales for x-axis, y-axis, and color.    
+        - X-axis: d3.scaleBand()
+        - Y-axis: d3.scaleLinear()
+    6. Implement an animated area chart with gradient fill where applicable.
+    7. Add an animated line chart on top of the area chart 
+        - Use d3.line() to define the line shape
+        - Animate the line using d3.transition() and attrTween('d', function(d))
+        - Implement path interpolation with d3.interpolate() for smooth animation
+    8. Add chart title and axis labels using d3.text()
+    9. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
+    10. create a dynamic and interactive legend for different categories
+    10. Implement interactive data points with hover effects and smooth transitions.
+    11. Design an informative tooltip that appears on hover and can be locked on click.
+    12. Create a dynamic and interactive legend that highlights data on hover.
+    13. Implement zooming and panning functionality.
+    14. Add a crosshair effect for precise data reading.
+    15. Implement a brush for range selection.
+    16. Ensure smooth color transitions and micro-interactions.
+    17. Include error checking for invalid data formats and handle missing data.
+    18. Optimize performance using efficient D3 methods and requestAnimationFrame.
+    19. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
+    20. Implement responsive design that adjusts to window resizing.
+    21. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
+    22. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
+    23. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
 
 
     Data Schema:
@@ -222,6 +231,36 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     {user_input}
 
     IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code. If the user request sounds like an update to the previous code, modify and return the entire updated code. Otherwise, generate and return entirely new code.
+
+    The code must be similar in quality and structure to the following template:
+
+    function createVisualization(data, svgElement) [
+        const margin = [ top: 40, right: 100, bottom: 60, left: 60 ];
+        const svgWidth = 1200;
+        const svgHeight = 700;
+        const width = svgWidth - margin.left - margin.right;
+        const height = svgHeight - margin.top - margin.bottom;
+
+        // Color palette
+        const colorPalette = d3.scaleOrdinal(d3.schemePastel1);
+
+        const svg = d3.select(svgElement)
+            .attr("viewBox", `0 0 $[svgWidth] $[svgHeight]`)
+            .append("g")
+            .attr("transform", `translate($[margin.left],$[margin.top])`);
+
+        // Add a subtle background
+        svg.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", "#f8f9fa")
+            .attr("rx", 10)
+            .attr("ry", 10);
+
+        // ... (rest of the example code)
+    
+
+
     """
     
     prompt = base_prompt
