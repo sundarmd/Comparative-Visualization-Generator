@@ -8,6 +8,7 @@ import traceback
 from typing import Optional, Dict, List
 import re
 import urllib.parse
+import streamlit.components.v1 as components
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -183,15 +184,15 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     Critical Requirements:
     1. Create a function named createVisualization(data, svgElement)
-    2. Implement a visualization that explicitly compares data from two CSV files:
-       - Use different colors or patterns for each data source
-       - Include a legend clearly indicating which color/pattern represents which data source
+    2. Implement a bar chart that explicitly compares data from two CSV files:
+       - Use side-by-side bars for each category (e.g., city)
+       - Use different colors for each data source (CSV file 1 and CSV file 2)
+       - Include a legend clearly indicating which color represents which data source
     3. Solve the overlapping labels problem:
        - Rotate labels if necessary (e.g., 45-degree angle)
        - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-       - Implement label truncation or abbreviation for long names
-    4. Ensure appropriate spacing between bars or data points
-    5. Add tooltips showing full information on hover
+    4. Add tooltips showing full information on hover
+    5. Ensure appropriate spacing between bars or data points
     6. Implement responsive design to fit various screen sizes
     7. Include smooth transitions for any data updates
 
@@ -205,49 +206,15 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     """
     
     if user_input:
-        prompt = f"""
-        # D3.js Code Generation Task
-
-        Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
-
-        Critical Requirements:
-        1. Create a function named createVisualization(data, svgElement)
-        2. Implement a visualization that explicitly compares data from two CSV files AND satisfies this user prompt:
-        ---
-        {user_input}
-        ---
-        3. Solve the overlapping labels problem:
-           - Rotate labels if necessary (e.g., 45-degree angle)
-           - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-           - Implement label truncation or abbreviation for long names
-        4. Use different colors or patterns for each data source
-        5. Include a legend clearly indicating which color/pattern represents which data source
-        6. Ensure appropriate spacing between bars or data points
-        7. Add tooltips showing full information on hover
-        8. Implement responsive design to fit various screen sizes
-        9. Include smooth transitions for any data updates
-
-        Data Schema:
-        {schema_str}
-
-        Sample Data:
-        {json.dumps(data_sample[:5], indent=2)}
-
-        Current Code:
-        ```javascript
-        {st.session_state.current_viz}
-        ```
-
-        IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
-        """
+        prompt = f"{base_prompt}\n\nAdditional User Requirements:\n{user_input}"
     else:
         prompt = base_prompt
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4-1106-preview",  # Using a more capable model
+            model="gpt-4-1106-preview",
             messages=[
-                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
+                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -256,7 +223,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
         
-        return d3_code
+        cleaned_d3_code = clean_d3_response(d3_code)
+        return cleaned_d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
         return generate_fallback_visualization()
@@ -313,8 +281,9 @@ def clean_d3_response(response: str) -> str:
     """
     Clean the LLM response to ensure it only contains D3 code.
     
-    This function removes markdown formatting, non-JavaScript lines,
-    and ensures the code starts with the createVisualization function.
+    This function removes markdown formatting, code block delimiters,
+    non-JavaScript lines, and ensures the code starts with the 
+    createVisualization function.
     
     Args:
         response (str): The raw response from the LLM.
@@ -323,7 +292,8 @@ def clean_d3_response(response: str) -> str:
         str: Cleaned D3.js code.
     """
     # Remove any potential markdown code blocks
-    response = response.replace("```javascript", "").replace("```", "")
+    response = re.sub(r'```(?:javascript)?\n?', '', response)
+    response = response.replace('```', '')
     
     # Remove any lines that don't look like JavaScript
     clean_lines = [line for line in response.split('\n') if line.strip() and not line.strip().startswith('#')]
@@ -335,49 +305,53 @@ def clean_d3_response(response: str) -> str:
     
     return '\n'.join(clean_lines)
 
-def display_visualization(d3_code: str):
+def display_visualization(d3_code: str) -> str:
     """
-    Display the D3.js visualization using an iframe.
-    
-    This function creates an iframe with the D3.js visualization code
-    and displays it within the Streamlit app without creating any external files.
+    Prepare the HTML content for the D3.js visualization.
     
     Args:
         d3_code (str): The D3.js code to be executed.
+    
+    Returns:
+        str: HTML content for the visualization.
     """
     html_content = f"""
-    <!DOCTYPE html>
     <html>
     <head>
         <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+        <style>
+            body, html {{
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }}
+            #visualization {{
+                width: 100%;
+                height: 100vh;
+            }}
+        </style>
     </head>
     <body>
         <div id="visualization"></div>
         <script>
-            {d3_code}
-            // Create the SVG element
+            const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
             const svgElement = d3.select("#visualization")
                 .append("svg")
-                .attr("width", 800)
-                .attr("height", 500)
+                .attr("width", "100%")
+                .attr("height", "100%")
+                .attr("viewBox", "0 0 800 500")
+                .attr("preserveAspectRatio", "xMidYMid meet")
                 .node();
             
-            // Get the data from the parent window
-            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+            {d3_code}
             
-            // Call the createVisualization function
-            createVisualization(vizData, svgElement);
+            createVisualization(data, svgElement);
         </script>
     </body>
     </html>
     """
-    
-    # Encode the data to pass it to the iframe
-    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
-    
-    # Display the iframe with the encoded data in the URL hash
-    st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=800, height=500, scrolling=True)
+    return html_content
 
 def generate_fallback_visualization() -> str:
     """
@@ -461,61 +435,71 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
         return refine_d3_code(cleaned_code, api_key)
 
 def main():
-    st.set_page_config(page_title="🎨 D3.js Visualization Generator", page_icon="✨", layout="wide")
-    st.title("🎨 D3.js Visualization Generator")
+    st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
+    st.title("🎨 Comparative Visualization Generator")
 
     api_key = get_api_key()
 
-    st.header("Upload CSV Files")
-    col1, col2 = st.columns(2)
-    with col1:
-        file1 = st.file_uploader("Upload first CSV file", type="csv")
-    with col2:
-        file2 = st.file_uploader("Upload second CSV file", type="csv")
+    if 'data_uploaded' not in st.session_state:
+        st.session_state.data_uploaded = False
 
-    if 'update_viz' not in st.session_state:
-        st.session_state.update_viz = False
+    if not st.session_state.data_uploaded:
+        st.header("Upload CSV Files")
+        col1, col2 = st.columns(2)
+        with col1:
+            file1 = st.file_uploader("Upload first CSV file", type="csv")
+        with col2:
+            file2 = st.file_uploader("Upload second CSV file", type="csv")
 
-    if file1 and file2:
-        try:
-            if 'preprocessed_df' not in st.session_state or st.session_state.preprocessed_df is None:
+        if file1 and file2:
+            try:
                 with st.spinner("Preprocessing data..."):
                     merged_df = preprocess_data(file1, file2)
                 st.session_state.preprocessed_df = merged_df
-            
+                st.session_state.data_uploaded = True
+                st.success("Data uploaded and preprocessed successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"An error occurred during data preprocessing: {str(e)}")
+                return
+    else:
+        if 'preprocessed_df' in st.session_state:
             with st.expander("Preview of preprocessed data"):
                 st.dataframe(st.session_state.preprocessed_df.head())
-            
-            if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
-                with st.spinner("Generating D3 visualization..."):
-                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
-                    st.session_state.current_viz = d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": "Initial comparative visualization",
-                        "code": d3_code
-                    })
 
+        st.subheader("Generate Visualization")
+        user_query = st.text_area("Enter your visualization request:", height=100)
+        
+        if st.button("Generate Visualization"):
+            if user_query:
+                with st.spinner("Generating visualization..."):
+                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
+                    cleaned_d3_code = clean_d3_response(d3_code)
+                st.session_state.current_viz = cleaned_d3_code
+                st.session_state.workflow_history.append({
+                    "version": len(st.session_state.workflow_history) + 1,
+                    "request": user_query,
+                    "code": cleaned_d3_code
+                })
+                st.rerun()
+            else:
+                st.warning("Please enter a visualization request.")
+
+        if 'current_viz' in st.session_state:
             st.subheader("Current Visualization")
-            with st.spinner("Preparing visualization..."):
-                display_visualization(st.session_state.current_viz)
-
-            st.subheader("Modify Visualization")
-            user_input = st.text_area("Enter your modification request:", height=100)
-            
-            if st.button("Update Visualization"):
-                if user_input:
-                    with st.spinner("Generating updated visualization..."):
-                        modified_d3_code = generate_and_validate_d3_code(merged_df, api_key, user_input)
-                    st.session_state.current_viz = modified_d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": user_input,
-                        "code": modified_d3_code
-                    })
-                    st.rerun()
-                else:
-                    st.warning("Please enter a modification request.")
+            try:
+                with st.spinner("Preparing visualization..."):
+                    html_content = display_visualization(st.session_state.current_viz)
+                    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
+                    iframe_url = f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
+                    st.components.v1.iframe(iframe_url, width=800, height=500, scrolling=True)
+                    
+                    # Also display using html component
+                    st.components.v1.html(html_content, height=600)
+            except Exception as e:
+                st.error(f"An error occurred while displaying the visualization: {str(e)}")
+                st.error("Please check the D3.js code for any issues.")
+                st.code(st.session_state.current_viz, language="javascript")
 
             with st.expander("View/Edit Visualization Code"):
                 code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
@@ -526,16 +510,16 @@ def main():
                     if st.button("Execute Code"):
                         if edit_enabled:
                             if validate_d3_code(code_editor):
-                                st.session_state.current_viz = code_editor
+                                cleaned_code = clean_d3_response(code_editor)
+                                st.session_state.current_viz = cleaned_code
                                 st.session_state.workflow_history.append({
+                                    "version": len(st.session_state.workflow_history) + 1,
                                     "request": "Manual code edit",
-                                    "code": code_editor
+                                    "code": cleaned_code
                                 })
                                 if len(st.session_state.workflow_history) > MAX_WORKFLOW_HISTORY:
                                     st.session_state.workflow_history.pop(0)
-                                st.empty()  # Clear the previous visualization
-                                display_visualization(st.session_state.current_viz)
-                                st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
+                                st.rerun()
                             else:
                                 st.error("Invalid D3.js code. Please check your code and try again.")
                         else:
@@ -552,17 +536,13 @@ def main():
                     st.write(f"Request: {step['request']}")
                     if st.button(f"Revert to Step {i+1}"):
                         st.session_state.current_viz = step['code']
-                        st.empty()  # Clear the previous visualization
-                        st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
+                        st.rerun()
 
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-            logger.error(f"Error in main function: {str(e)}")
-            logger.error(traceback.format_exc())
-            st.error("An unexpected error occurred. Please try again or contact support if the problem persists.")
-            st.code(traceback.format_exc())  # Display traceback for debugging
-    else:
-        st.info("Please upload both CSV files to visualize your data")
+        if st.button("End Session"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.success("Session ended. You can start a new session by uploading new files.")
+            st.rerun()
 
 if __name__ == "__main__":
     main()
