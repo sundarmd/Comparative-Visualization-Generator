@@ -321,14 +321,10 @@ def display_visualization(d3_code: str) -> str:
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
         <style>
-            body, html {{
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-            }}
             #visualization {{
                 width: 100%;
-                height: 100vh;
+                height: 100%;
+                overflow: auto;
             }}
         </style>
     </head>
@@ -340,7 +336,7 @@ def display_visualization(d3_code: str) -> str:
                 .append("svg")
                 .attr("width", "100%")
                 .attr("height", "100%")
-                .attr("viewBox", "0 0 800 500")
+                .attr("viewBox", "0 0 1000 600")
                 .attr("preserveAspectRatio", "xMidYMid meet")
                 .node();
             
@@ -492,10 +488,7 @@ def main():
                     html_content = display_visualization(st.session_state.current_viz)
                     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
                     iframe_url = f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
-                    st.components.v1.iframe(iframe_url, width=800, height=500, scrolling=True)
-                    
-                    # Also display using html component
-                    st.components.v1.html(html_content, height=600)
+                    st.components.v1.iframe(iframe_url, width=1000, height=600, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the D3.js code for any issues.")
