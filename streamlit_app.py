@@ -190,9 +190,9 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     1. Create a function named createVisualization(data, svgElement)
 
     2. Set up an advanced SVG canvas:
-    - Define margins using const margin = {top: 40, right: 100, bottom: 80, left: 100}
+    - Define margins using const margin = {{top: 40, right: 100, bottom: 80, left: 100}}
     - Set width and height: const width = 1200 - margin.left - margin.right, height = 700 - margin.top - margin.bottom
-    - Create an SVG element with d3.select(svgElement).attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+    - Create an SVG element with d3.select(svgElement).attr("viewBox", `0 0 ${{width + margin.left + margin.right}} ${{height + margin.top + margin.bottom}}`)
     - Add a subtle background with svg.append("rect").attr("width", width).attr("height", height).attr("fill", "#f8f9fa").attr("rx", 10).attr("ry", 10)
 
     3. Implement sophisticated scales:
