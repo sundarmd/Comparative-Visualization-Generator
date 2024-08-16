@@ -345,8 +345,8 @@ def display_visualization(d3_code: str):
             {d3_code}
             const svgElement = d3.select("#visualization")
                 .append("svg")
-                .attr("width", 1000)
-                .attr("height", 600)
+                .attr("width", 800)
+                .attr("height", 500)
                 .attr("viewBox", "0 0 1000 600")
                 .attr("preserveAspectRatio", "xMidYMid meet")
                 .node();
