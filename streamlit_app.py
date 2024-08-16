@@ -152,10 +152,10 @@ def validate_d3_code(code: str) -> bool:
 
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
-    Generate D3.js code using OpenAI API with emphasis on comparison and readability.
+    Generate D3.js code using OpenAI API with emphasis on intelligence and insights.
     
-    This function constructs a prompt for the OpenAI API, including data schema and sample,
-    and generates D3.js code based on the input DataFrame and user requirements.
+    This function constructs a comprehensive prompt for the OpenAI API, including
+    system message, data schema, sample data, and user input.
     
     Args:
         df (pd.DataFrame): The preprocessed DataFrame.
@@ -176,24 +176,38 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     client = OpenAI(api_key=api_key)
     
-    base_prompt = f"""
-    # D3.js Code Generation Task
+    system_message = """You are an elite D3.js expert specializing in creating sophisticated, insightful, and intelligent visualizations. 
+    Your task is to generate D3.js version 7 code that not only visualizes data but also reveals deep insights and patterns. 
+    Your visualizations should be clear, readable, comparative, and demonstrate advanced analytical thinking."""
 
-    Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
+    prompt = f"""
+    # Intelligent D3.js Visualization Generation Task
+
+    Generate ONLY D3.js version 7 code for a sophisticated, insightful, and intelligent visualization. Do not include any explanations, comments, or markdown formatting.
 
     Critical Requirements:
     1. Create a function named createVisualization(data, svgElement)
-    2. Implement a visualization that explicitly compares data from two CSV files:
-       - Use different colors or patterns for each data source
-       - Include a legend clearly indicating which color/pattern represents which data source
-    3. Solve the overlapping labels problem:
-       - Rotate labels if necessary (e.g., 45-degree angle)
-       - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-       - Implement label truncation or abbreviation for long names
-    4. Ensure appropriate spacing between bars or data points
-    5. Add tooltips showing full information on hover
-    6. Implement responsive design to fit various screen sizes
-    7. Include smooth transitions for any data updates
+    2. Implement an advanced visualization that reveals deep insights:
+       - Use intelligent color schemes that enhance data comprehension
+       - Incorporate multiple layers of information (e.g., combine chart types)
+       - Highlight key trends, outliers, or patterns automatically
+    3. Implement smart comparative features:
+       - Use advanced techniques like small multiples or parallel coordinates for multi-dimensional comparisons
+       - Incorporate statistical measures (e.g., mean, median, quartiles) to add context
+    4. Solve data complexity issues:
+       - Implement intelligent aggregation or sampling for large datasets
+       - Use advanced labeling techniques (e.g., smart label placement algorithms)
+    5. Add interactive elements that reveal deeper insights:
+       - Implement zoom and pan for detailed exploration
+       - Add click-through capabilities to drill down into data points
+    6. Ensure the visualization is self-explanatory:
+       - Add smart annotations that highlight key insights
+       - Implement an intelligent legend that adapts to the data
+    7. Optimize for performance:
+       - Use efficient D3 methods for large dataset handling
+       - Implement smart data binding and update patterns
+    8. If applicable, address the following user request intelligently:
+       {user_input}
 
     Data Schema:
     {schema_str}
@@ -201,53 +215,19 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Sample Data:
     {json.dumps(data_sample[:5], indent=2)}
 
-    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
+    Current Visualization Code (if any):
+    ```javascript
+    {st.session_state.get('current_viz', 'No current visualization')}
+    ```
+
+    IMPORTANT: Your entire response must be valid, sophisticated D3.js code that can be executed directly. The code should demonstrate advanced D3.js techniques and intelligent data visualization practices. Do not include any text before or after the code.
     """
-    
-    if user_input:
-        prompt = f"""
-        # D3.js Code Generation Task
-
-        Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
-
-        Critical Requirements:
-        1. Create a function named createVisualization(data, svgElement)
-        2. Implement a visualization that explicitly compares data from two CSV files AND satisfies this user prompt:
-        ---
-        {user_input}
-        ---
-        3. Solve the overlapping labels problem:
-           - Rotate labels if necessary (e.g., 45-degree angle)
-           - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-           - Implement label truncation or abbreviation for long names
-        4. Use different colors or patterns for each data source
-        5. Include a legend clearly indicating which color/pattern represents which data source
-        6. Ensure appropriate spacing between bars or data points
-        7. Add tooltips showing full information on hover
-        8. Implement responsive design to fit various screen sizes
-        9. Include smooth transitions for any data updates
-
-        Data Schema:
-        {schema_str}
-
-        Sample Data:
-        {json.dumps(data_sample[:5], indent=2)}
-
-        Current Code:
-        ```javascript
-        {st.session_state.current_viz}
-        ```
-
-        IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
-        """
-    else:
-        prompt = base_prompt
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4-1106-preview",  # Using a more capable model
+            model="gpt-4-1106-preview",
             messages=[
-                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ]
         )
@@ -499,7 +479,7 @@ def main():
         if st.button("Generate Visualization"):
             if user_query:
                 with st.spinner("Generating visualization..."):
-                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
+                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
                 st.session_state.current_viz = d3_code
                 st.session_state.workflow_history.append({
                     "version": len(st.session_state.workflow_history) + 1,
