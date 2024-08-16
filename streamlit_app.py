@@ -262,7 +262,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         - Add hover effects on legend items: .on("mouseover", highlightCategory)
 
     18. Ensure the visualization works with various data structures and handles edge cases gracefully:
-        - Implement error checking: if (!Array.isArray(data) || data.length === 0) { throw new Error("Invalid data format") }
+        - Implement error checking: if (!Array.isArray(data) || data.length === 0) {{ throw new Error("Invalid data format") }}
         - Handle missing data: .defined(d => !isNaN(d.value))
 
     19. Provide options for different chart types (line, bar, scatter, etc.) based on the data structure
