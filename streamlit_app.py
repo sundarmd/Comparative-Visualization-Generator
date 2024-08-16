@@ -217,7 +217,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     7. Design an informative and interactive tooltip:
     - Create tooltip: const tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0)
-    - Show on hover: function showTooltip(event, d) { tooltip.transition().duration(200).style("opacity", .9).html(`...`).style("left", `${event.pageX}px`).style("top", `${event.pageY}px`) }
+    - Show on hover: function showTooltip(event, d) {{ tooltip.transition().duration(200).style("opacity", .9).html(`...`).style("left", `${{event.pageX}}px`).style("top", `${{event.pageY}}px`) }}
 
     8. Create a dynamic and interactive legend:
     - Legend group: const legend = svg.append("g").attr("class", "legend").attr("transform", `translate(${width + 20}, 0)`)
