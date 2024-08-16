@@ -466,56 +466,54 @@ def main():
 
     api_key = get_api_key()
 
-    st.header("Upload CSV Files")
-    col1, col2 = st.columns(2)
-    with col1:
-        file1 = st.file_uploader("Upload first CSV file", type="csv")
-    with col2:
-        file2 = st.file_uploader("Upload second CSV file", type="csv")
+    if 'data_uploaded' not in st.session_state:
+        st.session_state.data_uploaded = False
 
-    if 'update_viz' not in st.session_state:
-        st.session_state.update_viz = False
+    if not st.session_state.data_uploaded:
+        st.header("Upload CSV Files")
+        col1, col2 = st.columns(2)
+        with col1:
+            file1 = st.file_uploader("Upload first CSV file", type="csv")
+        with col2:
+            file2 = st.file_uploader("Upload second CSV file", type="csv")
 
-    if file1 and file2:
-        try:
-            if 'preprocessed_df' not in st.session_state or st.session_state.preprocessed_df is None:
+        if file1 and file2:
+            try:
                 with st.spinner("Preprocessing data..."):
                     merged_df = preprocess_data(file1, file2)
                 st.session_state.preprocessed_df = merged_df
-            
+                st.session_state.data_uploaded = True
+                st.success("Data uploaded and preprocessed successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"An error occurred during data preprocessing: {str(e)}")
+                return
+    else:
+        if 'preprocessed_df' in st.session_state:
             with st.expander("Preview of preprocessed data"):
                 st.dataframe(st.session_state.preprocessed_df.head())
-            
-            if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
-                with st.spinner("Generating D3 visualization..."):
-                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
-                    st.session_state.current_viz = d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": "Initial comparative visualization",
-                        "code": d3_code
-                    })
 
+        st.subheader("Generate Visualization")
+        user_query = st.text_area("Enter your visualization request:", height=100)
+        
+        if st.button("Generate Visualization"):
+            if user_query:
+                with st.spinner("Generating visualization..."):
+                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
+                st.session_state.current_viz = d3_code
+                st.session_state.workflow_history.append({
+                    "version": len(st.session_state.workflow_history) + 1,
+                    "request": user_query,
+                    "code": d3_code
+                })
+                st.rerun()
+            else:
+                st.warning("Please enter a visualization request.")
+
+        if 'current_viz' in st.session_state:
             st.subheader("Current Visualization")
             with st.spinner("Preparing visualization..."):
                 display_visualization(st.session_state.current_viz)
-
-            st.subheader("Modify Visualization")
-            user_input = st.text_area("Enter your modification request:", height=100)
-            
-            if st.button("Update Visualization"):
-                if user_input:
-                    with st.spinner("Generating updated visualization..."):
-                        modified_d3_code = generate_and_validate_d3_code(merged_df, api_key, user_input)
-                    st.session_state.current_viz = modified_d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": user_input,
-                        "code": modified_d3_code
-                    })
-                    st.rerun()
-                else:
-                    st.warning("Please enter a modification request.")
 
             with st.expander("View/Edit Visualization Code"):
                 code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
@@ -528,14 +526,13 @@ def main():
                             if validate_d3_code(code_editor):
                                 st.session_state.current_viz = code_editor
                                 st.session_state.workflow_history.append({
+                                    "version": len(st.session_state.workflow_history) + 1,
                                     "request": "Manual code edit",
                                     "code": code_editor
                                 })
                                 if len(st.session_state.workflow_history) > MAX_WORKFLOW_HISTORY:
                                     st.session_state.workflow_history.pop(0)
-                                st.empty()  # Clear the previous visualization
-                                display_visualization(st.session_state.current_viz)
-                                st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
+                                st.rerun()
                             else:
                                 st.error("Invalid D3.js code. Please check your code and try again.")
                         else:
@@ -552,17 +549,13 @@ def main():
                     st.write(f"Request: {step['request']}")
                     if st.button(f"Revert to Step {i+1}"):
                         st.session_state.current_viz = step['code']
-                        st.empty()  # Clear the previous visualization
-                        st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
+                        st.rerun()
 
-        except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-            logger.error(f"Error in main function: {str(e)}")
-            logger.error(traceback.format_exc())
-            st.error("An unexpected error occurred. Please try again or contact support if the problem persists.")
-            st.code(traceback.format_exc())  # Display traceback for debugging
-    else:
-        st.info("Please upload both CSV files to visualize your data")
+        if st.button("End Session"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.success("Session ended. You can start a new session by uploading new files.")
+            st.rerun()
 
 if __name__ == "__main__":
     main()
