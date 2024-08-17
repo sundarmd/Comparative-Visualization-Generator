@@ -34,17 +34,12 @@ def get_api_key() -> Optional[str]:
     Securely retrieve the API key.
     
     This function attempts to get the API key from Streamlit secrets or environment variables.
-    If not found, it prompts the user to enter the key via a sidebar input.
+    If not found, it uses the value entered in the sidebar input.
     
     Returns:
         Optional[str]: The API key if found or entered, None otherwise.
     """
-    api_key = st.secrets.get("API_KEY") or os.getenv("API_KEY")
-    if not api_key:
-        api_key = st.sidebar.text_input("Enter your API Key", type="password")
-        if api_key:
-            st.sidebar.warning("It's recommended to use environment variables or Streamlit secrets for API keys.")
-    return api_key
+    return st.secrets.get("API_KEY") or os.getenv("API_KEY") or st.session_state.get('api_key')
 
 def test_api_key(api_key: str) -> bool:
     """
@@ -501,11 +496,10 @@ def main():
     selected_provider = st.sidebar.selectbox("Select AI Provider", options=list(model_options.keys()))
     selected_model = st.sidebar.selectbox("Select Model", options=model_options[selected_provider])
 
-    api_key = get_api_key()
-
-    # Update the selected model in session state
-    if 'selected_model' not in st.session_state or st.session_state.selected_model != selected_model:
-        st.session_state.selected_model = selected_model
+    # Update the API key input to be generic
+    api_key = st.sidebar.text_input("Enter your API Key", type="password")
+    if api_key:
+        st.sidebar.warning("It's recommended to use environment variables or Streamlit secrets for API keys.")
 
     if 'data_uploaded' not in st.session_state:
         st.session_state.data_uploaded = False
@@ -541,7 +535,7 @@ def main():
             if user_query and api_key:
                 with st.spinner("Generating visualization..."):
                     # Pass the selected model to the generate_d3_code function
-                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, st.session_state.selected_model)
+                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, selected_model)
                     cleaned_d3_code = clean_d3_response(d3_code)
                 st.session_state.current_viz = cleaned_d3_code
                 st.session_state.workflow_history.append({
