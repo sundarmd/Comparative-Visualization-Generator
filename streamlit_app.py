@@ -33,15 +33,15 @@ def get_api_key() -> Optional[str]:
     """
     Securely retrieve the API key.
     
-    This function attempts to get the OpenAI API key from Streamlit secrets or environment variables.
+    This function attempts to get the API key from Streamlit secrets or environment variables.
     If not found, it prompts the user to enter the key via a sidebar input.
     
     Returns:
         Optional[str]: The API key if found or entered, None otherwise.
     """
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("API_KEY") or os.getenv("API_KEY")
     if not api_key:
-        api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+        api_key = st.sidebar.text_input("Enter your API Key", type="password")
         if api_key:
             st.sidebar.warning("It's recommended to use environment variables or Streamlit secrets for API keys.")
     return api_key
@@ -151,7 +151,7 @@ def validate_d3_code(code: str) -> bool:
     
     return True
 
-def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
+def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selected_model: str = "GPT-4o (High-intelligence flagship)") -> str:
     """
     Generate D3.js code using OpenAI API with emphasis on comparison and readability.
     
@@ -162,6 +162,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         df (pd.DataFrame): The preprocessed DataFrame.
         api_key (str): OpenAI API key.
         user_input (str, optional): Additional user requirements for visualization.
+        selected_model (str, optional): The selected model for code generation.
     
     Returns:
         str: Generated D3.js code.
@@ -177,16 +178,12 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     d3_code = ""
 
-    client = OpenAI(api_key=api_key)
-    
     base_prompt = f"""
     # D3.js Code Generation Task
 
     Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
 
-
     Critical Requirements for D3.js Visualization:
-
     1. Create a function named createVisualization(data, svgElement)
     2. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
     3. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
@@ -201,7 +198,6 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         - Implement path interpolation with d3.interpolate() for smooth animation
     8. Add chart title and axis labels using d3.text()
     9. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
-    10. create a dynamic and interactive legend for different categories
     10. Implement interactive data points with hover effects and smooth transitions.
     11. Design an informative tooltip that appears on hover and can be locked on click.
     12. Create a dynamic and interactive legend that highlights data on hover.
@@ -217,64 +213,57 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     22. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
     23. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
 
-
     Data Schema:
     {schema_str}
 
     Sample Data:
     {json.dumps(data_sample[:5], indent=2)}
 
-    Previous D3 Code:
-    {d3_code}
-
     User Request:
     {user_input}
 
-    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code. If the user request sounds like an update to the previous code, modify and return the entire updated code. Otherwise, generate and return entirely new code.
-
-    The code must be similar in quality and structure to the following template:
-
-    function createVisualization(data, svgElement) [
-        const margin = [ top: 40, right: 100, bottom: 60, left: 60 ];
-        const svgWidth = 1200;
-        const svgHeight = 700;
-        const width = svgWidth - margin.left - margin.right;
-        const height = svgHeight - margin.top - margin.bottom;
-
-        // Color palette
-        const colorPalette = d3.scaleOrdinal(d3.schemePastel1);
-
-        const svg = d3.select(svgElement)
-            .attr("viewBox", `0 0 $[svgWidth] $[svgHeight]`)
-            .append("g")
-            .attr("transform", `translate($[margin.left],$[margin.top])`);
-
-        // Add a subtle background
-        svg.append("rect")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("fill", "#f8f9fa")
-            .attr("rx", 10)
-            .attr("ry", 10);
-
-        // ... (rest of the example code)
-    
-
-
+    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
     """
     
     prompt = base_prompt
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4-1106-preview",
-            messages=[
-                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        d3_code = response.choices[0].message.content
+        if "OpenAI" in selected_model:
+            client = OpenAI(api_key=api_key)
+            model_name = "gpt-4-1106-preview" if "GPT-4" in selected_model else "gpt-3.5-turbo"
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            d3_code = response.choices[0].message.content
+        elif "Claude" in selected_model:
+            # Implement Anthropic API call here
+            # You'll need to use the appropriate Anthropic client library or API endpoint
+            # For example:
+            # from anthropic import Anthropic
+            # client = Anthropic(api_key=api_key)
+            # response = client.completions.create(
+            #     model="claude-3-sonnet-20240229",
+            #     prompt=f"Human: {prompt}\n\nAssistant:",
+            #     max_tokens_to_sample=1000
+            # )
+            # d3_code = response.completion
+            pass
+        elif "Gemini" in selected_model:
+            # Implement Google AI (Gemini) API call here
+            # You'll need to use the appropriate Google AI client library or API endpoint
+            # For example:
+            # from google.generativeai import GenerativeModel
+            # model = GenerativeModel('gemini-pro')
+            # response = model.generate_content(prompt)
+            # d3_code = response.text
+            pass
+        else:
+            raise ValueError(f"Unsupported model: {selected_model}")
+
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
         
@@ -426,7 +415,7 @@ def generate_fallback_visualization() -> str:
                    .attr("height", height + margin.top + margin.bottom);
         
         const svg = svgElement.append("g")
-            .attr("transform", `translate($[margin.left],$[margin.top])`);
+            .attr("transform", `translate(${margin.left},${margin.top})`);
 
         // Assuming the first column is for x-axis and second for y-axis
         const xKey = Object.keys(data[0])[0];
@@ -451,7 +440,7 @@ def generate_fallback_visualization() -> str:
             .attr("fill", "steelblue");
 
         svg.append("g")
-            .attr("transform", `translate(0, $[height])`)
+            .attr("transform", `translate(0, ${height})`)
             .call(d3.axisBottom(xScale));
 
         svg.append("g")
@@ -489,7 +478,34 @@ def main():
     st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
     st.title("🎨 Comparative Visualization Generator")
 
+    # Add model selection dropdown in the sidebar
+    model_options = {
+        "OpenAI": [
+            "GPT-4o (High-intelligence flagship)",
+            "GPT-4o mini (Affordable and intelligent)",
+            "GPT-4 Turbo",
+            "GPT-4",
+            "GPT-3.5 Turbo (Fast and inexpensive)"
+        ],
+        "Anthropic": [
+            "Claude 3.5 Sonnet (Most intelligent)",
+            "Claude 3 Haiku (Fast and cost-effective)",
+            "Claude 3 Sonnet (Balanced)",
+            "Claude 3 Opus (Excels at writing and complex tasks)"
+        ],
+        "Google": [
+            "Gemini Pro"
+        ]
+    }
+    
+    selected_provider = st.sidebar.selectbox("Select AI Provider", options=list(model_options.keys()))
+    selected_model = st.sidebar.selectbox("Select Model", options=model_options[selected_provider])
+
     api_key = get_api_key()
+
+    # Update the selected model in session state
+    if 'selected_model' not in st.session_state or st.session_state.selected_model != selected_model:
+        st.session_state.selected_model = selected_model
 
     if 'data_uploaded' not in st.session_state:
         st.session_state.data_uploaded = False
@@ -522,9 +538,10 @@ def main():
         user_query = st.text_area("Enter your visualization request:", height=100)
         
         if st.button("Generate Visualization"):
-            if user_query:
+            if user_query and api_key:
                 with st.spinner("Generating visualization..."):
-                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
+                    # Pass the selected model to the generate_d3_code function
+                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, st.session_state.selected_model)
                     cleaned_d3_code = clean_d3_response(d3_code)
                 st.session_state.current_viz = cleaned_d3_code
                 st.session_state.workflow_history.append({
@@ -534,7 +551,10 @@ def main():
                 })
                 st.rerun()
             else:
-                st.warning("Please enter a visualization request.")
+                if not user_query:
+                    st.warning("Please enter a visualization request.")
+                if not api_key:
+                    st.warning("Please enter a valid API key.")
 
         if 'current_viz' in st.session_state:
             st.subheader("Current Visualization")
