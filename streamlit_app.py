@@ -9,6 +9,7 @@ from typing import Optional, Dict, List
 import re
 import urllib.parse
 import streamlit.components.v1 as components
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -350,15 +351,13 @@ def clean_d3_response(response: str) -> str:
     
     return '\n'.join(clean_lines)
 
-def display_visualization(d3_code: str) -> str:
+def display_visualization(d3_code: str, encoded_data: str) -> None:
     """
-    Prepare the HTML content for the D3.js visualization.
+    Prepare the HTML content for the D3.js visualization and display it using an iframe.
     
     Args:
         d3_code (str): The D3.js code to be executed.
-    
-    Returns:
-        str: HTML content for the visualization.
+        encoded_data (str): URL-encoded JSON data for the visualization.
     """
     html_content = f"""
     <!DOCTYPE html>
@@ -381,7 +380,7 @@ def display_visualization(d3_code: str) -> str:
         <div id="visualization"></div>
         <script>
             try {{
-                const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+                const data = JSON.parse(decodeURIComponent("{encoded_data}"));
                 console.log("Parsed data:", data);
                 const svgElement = d3.select("#visualization")
                     .append("svg")
@@ -403,7 +402,12 @@ def display_visualization(d3_code: str) -> str:
     </body>
     </html>
     """
-    return html_content
+    
+    # Create a data URI for the HTML content
+    html_uri = f"data:text/html;base64,{base64.b64encode(html_content.encode()).decode()}"
+    
+    # Display the visualization using st.components.v1.iframe
+    st.components.v1.iframe(html_uri, height=600, scrolling=True)
 
 def generate_fallback_visualization() -> str:
     """
