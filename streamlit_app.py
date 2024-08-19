@@ -92,12 +92,16 @@ def preprocess_data(file1, file2) -> pd.DataFrame:
         except pd.errors.ParserError:
             raise ValueError("Error parsing the CSV files. Please ensure they are valid CSV format.")
         
+        logger.info(f"File 1 shape: {df1.shape}, File 2 shape: {df2.shape}")
+        
         # Add 'Source' column to identify the origin of each row
         df1['Source'] = 'CSV file 1'
         df2['Source'] = 'CSV file 2'
         
         # Merge the two DataFrames
         merged_df = pd.concat([df1, df2], ignore_index=True)
+        
+        logger.info(f"Merged DataFrame shape: {merged_df.shape}")
         
         # Handle missing values by filling them with 0
         merged_df = merged_df.fillna(0)
@@ -114,6 +118,8 @@ def preprocess_data(file1, file2) -> pd.DataFrame:
         merged_df.columns = merged_df.columns.str.lower().str.replace(' ', '_')
         
         logger.info("Data preprocessing completed successfully")
+        logger.info(f"Final DataFrame shape: {merged_df.shape}")
+        logger.info(f"Columns: {merged_df.columns.tolist()}")
         return merged_df
     except Exception as e:
         logger.error(f"Error in data preprocessing: {str(e)}")
@@ -530,9 +536,13 @@ def main():
                 st.session_state.preprocessed_df = merged_df
                 st.session_state.data_uploaded = True
                 st.success("Data uploaded and preprocessed successfully!")
+                st.write(f"DataFrame shape: {merged_df.shape}")
+                st.write(f"Columns: {', '.join(merged_df.columns)}")
                 st.rerun()
             except Exception as e:
                 st.error(f"An error occurred during data preprocessing: {str(e)}")
+                logger.error(f"Preprocessing error: {str(e)}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 return
     else:
         if 'preprocessed_df' in st.session_state:
@@ -546,17 +556,21 @@ def main():
         
         if st.button("Generate Visualization"):
             if user_query and api_key:
-                with st.spinner("Generating visualization..."):
-                    # Pass the selected model to the generate_d3_code function
-                    d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, selected_model)
-                    cleaned_d3_code = clean_d3_response(d3_code)
-                st.session_state.current_viz = cleaned_d3_code
-                st.session_state.workflow_history.append({
-                    "version": len(st.session_state.workflow_history) + 1,
-                    "request": user_query,
-                    "code": cleaned_d3_code
-                })
-                st.rerun()
+                try:
+                    with st.spinner("Generating visualization..."):
+                        d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, selected_model)
+                        cleaned_d3_code = clean_d3_response(d3_code)
+                    st.session_state.current_viz = cleaned_d3_code
+                    st.session_state.workflow_history.append({
+                        "version": len(st.session_state.workflow_history) + 1,
+                        "request": user_query,
+                        "code": cleaned_d3_code
+                    })
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"An error occurred while generating the visualization: {str(e)}")
+                    logger.error(f"Visualization generation error: {str(e)}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
             else:
                 if not user_query:
                     st.warning("Please enter a visualization request.")
@@ -619,6 +633,16 @@ def main():
                 del st.session_state[key]
             st.success("Session ended. You can start a new session by uploading new files.")
             st.rerun()
+
+    # Add this at the end of the main function
+    with st.expander("Debug Information"):
+        st.write("Session State:")
+        for key, value in st.session_state.items():
+            if key != 'preprocessed_df':  # Avoid displaying large dataframes
+                st.write(f"{key}: {value}")
+        if 'preprocessed_df' in st.session_state:
+            st.write("Preprocessed DataFrame Info:")
+            st.write(st.session_state.preprocessed_df.info())
 
 if __name__ == "__main__":
     main()
