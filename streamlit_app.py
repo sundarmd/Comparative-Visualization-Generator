@@ -355,14 +355,18 @@ def display_visualization(d3_code: str) -> str:
         str: HTML content for the visualization.
     """
     html_content = f"""
-    <html>
+    <!DOCTYPE html>
+    <html lang="en">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>D3 Visualization</title>
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
         <style>
             #visualization {{
                 width: 100%;
-                height: 100%;
+                height: 100vh;
                 overflow: auto;
             }}
         </style>
