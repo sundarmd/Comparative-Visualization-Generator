@@ -374,18 +374,25 @@ def display_visualization(d3_code: str) -> str:
     <body>
         <div id="visualization"></div>
         <script>
-            const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-            const svgElement = d3.select("#visualization")
-                .append("svg")
-                .attr("width", "100%")
-                .attr("height", "100%")
-                .attr("viewBox", "0 0 1000 600")
-                .attr("preserveAspectRatio", "xMidYMid meet")
-                .node();
-            
-            {d3_code}
-            
-            createVisualization(data, svgElement);
+            try {{
+                const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+                console.log("Parsed data:", data);
+                const svgElement = d3.select("#visualization")
+                    .append("svg")
+                    .attr("width", "100%")
+                    .attr("height", "100%")
+                    .attr("viewBox", "0 0 1000 600")
+                    .attr("preserveAspectRatio", "xMidYMid meet")
+                    .node();
+                
+                {d3_code}
+                
+                createVisualization(data, svgElement);
+                console.log("Visualization created successfully");
+            }} catch (error) {{
+                console.error("Error in visualization:", error);
+                document.getElementById("visualization").innerHTML = "Error: " + error.message;
+            }}
         </script>
     </body>
     </html>
@@ -531,6 +538,8 @@ def main():
         if 'preprocessed_df' in st.session_state:
             with st.expander("Preview of preprocessed data"):
                 st.dataframe(st.session_state.preprocessed_df.head())
+                st.write(f"Total rows: {len(st.session_state.preprocessed_df)}")
+                st.write(f"Columns: {', '.join(st.session_state.preprocessed_df.columns)}")
 
         st.subheader("Generate Visualization")
         user_query = st.text_area("Enter your visualization request:", height=100)
@@ -561,10 +570,11 @@ def main():
                     html_content = display_visualization(st.session_state.current_viz)
                     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
                     iframe_url = f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
+                    components.html(html_content, height=600, scrolling=True)
                     st.components.v1.iframe(iframe_url, width=1000, height=600, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
-                st.error("Please check the D3.js code for any issues.")
+                st.error("Please check the browser console for more details.")
                 st.code(st.session_state.current_viz, language="javascript")
 
             with st.expander("View/Edit Visualization Code"):
