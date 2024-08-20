@@ -216,6 +216,11 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
     21. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
     22. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
     23. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
+    24. Always start your createVisualization function with:
+    function createVisualization(data, svgElement) {{
+      const svg = typeof svgElement.attr === 'function' ? svgElement : d3.select(svgElement);
+      // Rest of your visualization code here, always using 'svg' instead of 'svgElement'
+    }}
 
     Data Schema:
     {schema_str}
@@ -252,7 +257,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
         logger.error(f"Error generating D3 code: {str(e)}")
         return generate_fallback_visualization()
 
-def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
+def refine_d3_code(initial_code: str, api_key: str, selected_model: str, max_attempts: int = 3) -> str:
     """
     Refine the D3 code through iterative LLM calls if necessary.
     
@@ -262,6 +267,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     Args:
         initial_code (str): The initial D3.js code to refine.
         api_key (str): OpenAI API key.
+        selected_model (str): The selected model for code refinement.
         max_attempts (int, optional): Maximum number of refinement attempts. Defaults to 3.
     
     Returns:
@@ -282,12 +288,17 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         1. Defines a createVisualization(data, svgElement) function
         2. Uses only D3.js version 7 syntax
         3. Creates a valid visualization
+        4. Starts the createVisualization function with:
+           function createVisualization(data, svgElement) {{
+             const svg = typeof svgElement.attr === 'function' ? svgElement : d3.select(svgElement);
+             // Rest of your visualization code here, always using 'svg' instead of 'svgElement'
+           }}
         
         Return ONLY the corrected D3 code without any explanations or comments.
         """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=selected_model,
             messages=[
                 {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
                 {"role": "user", "content": refinement_prompt}
@@ -324,6 +335,7 @@ def clean_d3_response(response: str) -> str:
     # Ensure the code starts with the createVisualization function
     if not any(line.strip().startswith('function createVisualization') for line in clean_lines):
         clean_lines.insert(0, 'function createVisualization(data, svgElement) {')
+        clean_lines.insert(1, '  const svg = typeof svgElement.attr === \'function\' ? svgElement : d3.select(svgElement);')
         clean_lines.append('}')
     
     return '\n'.join(clean_lines)
