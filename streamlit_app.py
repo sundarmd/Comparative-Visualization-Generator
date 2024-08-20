@@ -29,6 +29,8 @@ if 'update_viz' not in st.session_state:
     st.session_state.update_viz = False  # Flag to trigger visualization update
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []  # Stores the chat history
+if 'visualization_error' not in st.session_state:
+    st.session_state.visualization_error = None  # Stores any errors from the visualization
 
 def get_api_key() -> Optional[str]:
     """
@@ -230,41 +232,16 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
     prompt = base_prompt
     
     try:
-        if "OpenAI" in selected_model:
-            client = OpenAI(api_key=api_key)
-            model_name = "gpt-4-1106-preview" if "GPT-4" in selected_model else "gpt-3.5-turbo"
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            d3_code = response.choices[0].message.content
-        elif "Claude" in selected_model:
-            # Implement Anthropic API call here
-            # You'll need to use the appropriate Anthropic client library or API endpoint
-            # For example:
-            # from anthropic import Anthropic
-            # client = Anthropic(api_key=api_key)
-            # response = client.completions.create(
-            #     model="claude-3-sonnet-20240229",
-            #     prompt=f"Human: {prompt}\n\nAssistant:",
-            #     max_tokens_to_sample=1000
-            # )
-            # d3_code = response.completion
-            pass
-        elif "Gemini" in selected_model:
-            # Implement Google AI (Gemini) API call here
-            # You'll need to use the appropriate Google AI client library or API endpoint
-            # For example:
-            # from google.generativeai import GenerativeModel
-            # model = GenerativeModel('gemini-pro')
-            # response = model.generate_content(prompt)
-            # d3_code = response.text
-            pass
-        else:
-            raise ValueError(f"Unsupported model: {selected_model}")
+        client = OpenAI(api_key=api_key)
+        model_name = selected_model
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        d3_code = response.choices[0].message.content
 
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
@@ -376,11 +353,34 @@ def display_visualization(d3_code: str) -> str:
                 height: 100vh;
                 overflow: auto;
             }}
+            #loading {{
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 24px;
+                font-weight: bold;
+            }}
         </style>
     </head>
     <body>
+        <div id="loading">Loading visualization...</div>
         <div id="visualization"></div>
         <script>
+            window.onerror = function(message, source, lineno, colno, error) {{
+                window.parent.postMessage({{
+                    type: 'visualization_error',
+                    error: {{
+                        message: message,
+                        source: source,
+                        lineno: lineno,
+                        colno: colno,
+                        stack: error ? error.stack : null
+                    }}
+                }}, '*');
+                return true;
+            }};
+            
             try {{
                 const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
                 console.log("Parsed data:", data);
@@ -590,8 +590,8 @@ def main():
                     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
                     iframe_url = f"{html_uri}#{encoded_data}"
                     
-                    # Display the visualization using st.components.v1.iframe
-                    st.components.v1.iframe(iframe_url, height=600, scrolling=True)
+                    # Display the visualization using st.components.v1.iframe with 100vh height
+                    st.components.v1.iframe(iframe_url, height=800, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the browser console for more details.")
