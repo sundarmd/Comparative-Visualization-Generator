@@ -330,10 +330,10 @@ def clean_d3_response(response: str) -> str:
 
 def display_visualization(d3_code: str):
     """
-    Display the D3.js visualization using an iframe.
+    Display the D3.js visualization using Streamlit components.
     
-    This function creates an iframe with the D3.js visualization code
-    and displays it within the Streamlit app without creating any external files.
+    This function creates an HTML component with the D3.js visualization code
+    and displays it within the Streamlit app using components.html().
     
     Args:
         d3_code (str): The D3.js code to be executed.
@@ -355,7 +355,7 @@ def display_visualization(d3_code: str):
                 .attr("height", 500);
             
             // Get the data from the parent window
-            const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+            const data = {json.dumps(st.session_state.preprocessed_df.to_dict(orient='records'))};
             
             // Call the createVisualization function
             createVisualization(data, svgElement);
@@ -364,11 +364,18 @@ def display_visualization(d3_code: str):
     </html>
     """
     
-    # Encode the data to pass it to the iframe
-    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
+    # Create a unique filename for this visualization
+    viz_filename = f"viz_{hash(html_content)}.html"
     
-    # Return the iframe URL with the encoded data in the URL hash
-    return f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
+    # Write the HTML content to a file
+    with open(viz_filename, "w") as f:
+        f.write(html_content)
+    
+    # Use an iframe to display the visualization
+    components.iframe(viz_filename, height=800, scrolling=True)
+    
+    # Clean up the file after displaying
+    os.remove(viz_filename)
 
 def generate_fallback_visualization() -> str:
     """
@@ -527,10 +534,7 @@ def main():
             st.subheader("Current Visualization")
             try:
                 with st.spinner("Preparing visualization..."):
-                    iframe_url = display_visualization(st.session_state.current_viz)
-                    
-                    # Display the visualization in the dedicated container
-                    visualization_container.iframe(iframe_url, height=800, scrolling=True)
+                    display_visualization(st.session_state.current_viz)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the browser console for more details.")
