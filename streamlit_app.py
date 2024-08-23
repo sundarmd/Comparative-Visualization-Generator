@@ -530,7 +530,7 @@ def main():
                     iframe_url = display_visualization(st.session_state.current_viz)
                     
                     # Display the visualization in the dedicated container
-                    visualization_container.components.iframe(iframe_url, height=800, scrolling=True)
+                    visualization_container.iframe(iframe_url, height=800, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the browser console for more details.")
