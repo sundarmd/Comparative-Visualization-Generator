@@ -352,14 +352,13 @@ def display_visualization(d3_code: str):
             const svgElement = d3.select("#visualization")
                 .append("svg")
                 .attr("width", 800)
-                .attr("height", 500)
-                .node();
+                .attr("height", 500);
             
             // Get the data from the parent window
-            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+            const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
             
             // Call the createVisualization function
-            createVisualization(vizData, svgElement);
+            createVisualization(data, svgElement);
         </script>
     </body>
     </html>
@@ -370,8 +369,9 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=800, height=500, scrolling=True)
+                            width=820, height=520, scrolling=True)
 
+    # Check if the iframe is rendered correctly
 
 def generate_fallback_visualization() -> str:
     """
@@ -528,11 +528,11 @@ def main():
             try:
                 with st.spinner("Preparing visualization..."):
                     html_uri = display_visualization(st.session_state.current_viz)
-                    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
+                    encoded_data = base64.b64encode(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')).encode()).decode()
                     iframe_url = f"{html_uri}#{encoded_data}"
                     
-                    # Display the visualization using st.components.v1.iframe with 100vh height
-                    st.components.v1.iframe(iframe_url, height=800, scrolling=True)
+                    # Display the visualization using st.components.v1.iframe with 800px height
+                    components.iframe(iframe_url, height=800, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the browser console for more details.")
