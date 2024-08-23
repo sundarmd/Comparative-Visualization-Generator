@@ -587,7 +587,7 @@ def main():
         for key, value in st.session_state.items():
             if key != 'preprocessed_df':  # Avoid displaying large dataframes
                 st.write(f"{key}: {value}")
-        if 'preprocessed_df' in st.session_state:
+        if 'preprocessed_df' in st.session_state and st.session_state.preprocessed_df is not None:
             st.write("Preprocessed DataFrame Info:")
             st.write(st.session_state.preprocessed_df.info())
 
