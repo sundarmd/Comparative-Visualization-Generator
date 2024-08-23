@@ -34,15 +34,12 @@ if 'visualization_error' not in st.session_state:
 
 def get_api_key() -> Optional[str]:
     """
-    Securely retrieve the API key.
-    
-    This function attempts to get the API key from Streamlit secrets or environment variables.
-    If not found, it uses the value entered in the sidebar input.
+    Retrieve the API key.
     
     Returns:
-        Optional[str]: The API key if found or entered, None otherwise.
+        Optional[str]: The API key if found, None otherwise.
     """
-    return st.secrets.get("API_KEY") or os.getenv("API_KEY") or st.session_state.get('api_key')
+    return st.secrets.get("API_KEY") or os.getenv("API_KEY") or st.sidebar.text_input("Enter your API Key", type="password")
 
 def test_api_key(api_key: str) -> bool:
     """
@@ -155,7 +152,7 @@ def validate_d3_code(code: str) -> bool:
     
     return True
 
-def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selected_model: str = "GPT-4o (High-intelligence flagship)") -> str:
+def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
     Generate D3.js code using OpenAI API with emphasis on comparison and readability.
     
@@ -166,7 +163,6 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
         df (pd.DataFrame): The preprocessed DataFrame.
         api_key (str): OpenAI API key.
         user_input (str, optional): Additional user requirements for visualization.
-        selected_model (str, optional): The selected model for code generation.
     
     Returns:
         str: Generated D3.js code.
@@ -238,9 +234,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
     
     try:
         client = OpenAI(api_key=api_key)
-        model_name = selected_model
         response = client.chat.completions.create(
-            model=model_name,
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations."},
                 {"role": "user", "content": prompt}
@@ -251,13 +246,12 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "", selec
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
         
-        cleaned_d3_code = clean_d3_response(d3_code)
-        return cleaned_d3_code
+        return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
         return generate_fallback_visualization()
 
-def refine_d3_code(initial_code: str, api_key: str, selected_model: str, max_attempts: int = 3) -> str:
+def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
     """
     Refine the D3 code through iterative LLM calls if necessary.
     
@@ -267,7 +261,6 @@ def refine_d3_code(initial_code: str, api_key: str, selected_model: str, max_att
     Args:
         initial_code (str): The initial D3.js code to refine.
         api_key (str): OpenAI API key.
-        selected_model (str): The selected model for code refinement.
         max_attempts (int, optional): Maximum number of refinement attempts. Defaults to 3.
     
     Returns:
@@ -288,17 +281,12 @@ def refine_d3_code(initial_code: str, api_key: str, selected_model: str, max_att
         1. Defines a createVisualization(data, svgElement) function
         2. Uses only D3.js version 7 syntax
         3. Creates a valid visualization
-        4. Starts the createVisualization function with:
-           function createVisualization(data, svgElement) {{
-             const svg = typeof svgElement.attr === 'function' ? svgElement : d3.select(svgElement);
-             // Rest of your visualization code here, always using 'svg' instead of 'svgElement'
-           }}
         
         Return ONLY the corrected D3 code without any explanations or comments.
         """
         
         response = client.chat.completions.create(
-            model=selected_model,
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
                 {"role": "user", "content": refinement_prompt}
@@ -340,87 +328,50 @@ def clean_d3_response(response: str) -> str:
     
     return '\n'.join(clean_lines)
 
-def display_visualization(d3_code: str) -> str:
+def display_visualization(d3_code: str):
     """
-    Prepare the HTML content for the D3.js visualization.
+    Display the D3.js visualization using an iframe.
+    
+    This function creates an iframe with the D3.js visualization code
+    and displays it within the Streamlit app without creating any external files.
     
     Args:
         d3_code (str): The D3.js code to be executed.
-    
-    Returns:
-        str: HTML content for the visualization.
     """
     html_content = f"""
     <!DOCTYPE html>
-    <html lang="en">
+    <html>
     <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>D3 Visualization</title>
         <script src="https://d3js.org/d3.v7.min.js"></script>
-        <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
-        <style>
-            #visualization {{
-                width: 100%;
-                height: 100vh;
-                overflow: auto;
-            }}
-            #loading {{
-                position: fixed;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                font-size: 24px;
-                font-weight: bold;
-            }}
-        </style>
     </head>
     <body>
-        <div id="loading">Loading visualization...</div>
         <div id="visualization"></div>
         <script>
-            window.onerror = function(message, source, lineno, colno, error) {{
-                window.parent.postMessage({{
-                    type: 'visualization_error',
-                    error: {{
-                        message: message,
-                        source: source,
-                        lineno: lineno,
-                        colno: colno,
-                        stack: error ? error.stack : null
-                    }}
-                }}, '*');
-                return true;
-            }};
+            {d3_code}
+            // Create the SVG element
+            const svgElement = d3.select("#visualization")
+                .append("svg")
+                .attr("width", 800)
+                .attr("height", 500)
+                .node();
             
-            try {{
-                const data = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-                console.log("Parsed data:", data);
-                const svgElement = d3.select("#visualization")
-                    .append("svg")
-                    .attr("width", "100%")
-                    .attr("height", "100%")
-                    .attr("viewBox", "0 0 1000 600")
-                    .attr("preserveAspectRatio", "xMidYMid meet")
-                    .node();
-                
-                {d3_code}
-                
-                createVisualization(data, svgElement);
-                console.log("Visualization created successfully");
-            }} catch (error) {{
-                console.error("Error in visualization:", error);
-                document.getElementById("visualization").innerHTML = "Error: " + error.message;
-            }}
+            // Get the data from the parent window
+            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+            
+            // Call the createVisualization function
+            createVisualization(vizData, svgElement);
         </script>
     </body>
     </html>
     """
     
-    # Create a data URI for the HTML content
-    html_uri = f"data:text/html;base64,{base64.b64encode(html_content.encode()).decode()}"
+    # Encode the data to pass it to the iframe
+    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
     
-    return html_uri
+    # Display the iframe with the encoded data in the URL hash
+    st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
+                            width=800, height=500, scrolling=True)
+
 
 def generate_fallback_visualization() -> str:
     """
@@ -507,33 +458,11 @@ def main():
     st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
     st.title("🎨 Comparative Visualization Generator")
 
-    # Add model selection dropdown in the sidebar
-    model_options = {
-        "OpenAI": [
-            "GPT-4o (High-intelligence flagship)",
-            "GPT-4o mini (Affordable and intelligent)",
-            "GPT-4 Turbo",
-            "GPT-4",
-            "GPT-3.5 Turbo (Fast and inexpensive)"
-        ],
-        "Anthropic": [
-            "Claude 3.5 Sonnet (Most intelligent)",
-            "Claude 3 Haiku (Fast and cost-effective)",
-            "Claude 3 Sonnet (Balanced)",
-            "Claude 3 Opus (Excels at writing and complex tasks)"
-        ],
-        "Google": [
-            "Gemini Pro"
-        ]
-    }
-    
-    selected_provider = st.sidebar.selectbox("Select AI Provider", options=list(model_options.keys()))
-    selected_model = st.sidebar.selectbox("Select Model", options=model_options[selected_provider])
-
-    # Update the API key input to be generic
-    api_key = st.sidebar.text_input("Enter your API Key", type="password")
-    if api_key:
-        st.sidebar.warning("It's recommended to use environment variables or Streamlit secrets for API keys.")
+    # Simplified API key input
+    api_key = get_api_key()
+    if not api_key:
+        st.warning("Please enter a valid API key in the sidebar.")
+        return
 
     if 'data_uploaded' not in st.session_state:
         st.session_state.data_uploaded = False
@@ -575,7 +504,7 @@ def main():
             if user_query and api_key:
                 try:
                     with st.spinner("Generating visualization..."):
-                        d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query, selected_model)
+                        d3_code = generate_d3_code(st.session_state.preprocessed_df, api_key, user_query)
                         cleaned_d3_code = clean_d3_response(d3_code)
                     st.session_state.current_viz = cleaned_d3_code
                     st.session_state.workflow_history.append({
