@@ -367,11 +367,8 @@ def display_visualization(d3_code: str):
     # Encode the data to pass it to the iframe
     encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
     
-    # Display the iframe with the encoded data in the URL hash
-    st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=820, height=520, scrolling=True)
-
-    # Check if the iframe is rendered correctly
+    # Return the iframe URL with the encoded data in the URL hash
+    return f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}"
 
 def generate_fallback_visualization() -> str:
     """
@@ -523,16 +520,17 @@ def main():
                 if not api_key:
                     st.warning("Please enter a valid API key.")
 
+        # Create a dedicated space for rendering the visualization
+        visualization_container = st.empty()
+
         if 'current_viz' in st.session_state:
             st.subheader("Current Visualization")
             try:
                 with st.spinner("Preparing visualization..."):
-                    html_uri = display_visualization(st.session_state.current_viz)
-                    encoded_data = base64.b64encode(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')).encode()).decode()
-                    iframe_url = f"{html_uri}#{encoded_data}"
+                    iframe_url = display_visualization(st.session_state.current_viz)
                     
-                    # Display the visualization using st.components.v1.iframe with 800px height
-                    components.iframe(iframe_url, height=800, scrolling=True)
+                    # Display the visualization in the dedicated container
+                    visualization_container.components.iframe(iframe_url, height=800, scrolling=True)
             except Exception as e:
                 st.error(f"An error occurred while displaying the visualization: {str(e)}")
                 st.error("Please check the browser console for more details.")
