@@ -487,7 +487,7 @@ def main():
                 st.dataframe(st.session_state.preprocessed_df.head())
             
             if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
-                with st.spinner("Generating D3 visualization..."):
+                with st.spinner("Generating initial D3 visualization..."):
                     d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
                     st.session_state.current_viz = d3_code
                     st.session_state.workflow_history.append({
@@ -501,12 +501,14 @@ def main():
                 display_visualization(st.session_state.current_viz)
 
             st.subheader("Modify Visualization")
-            user_input = st.text_area("Enter your modification request:", height=100)
+            user_input = st.text_area("Enter your modification request (or type 'exit' to finish):", height=100)
             
             if st.button("Update Visualization"):
-                if user_input:
+                if user_input.lower().strip() == 'exit':
+                    st.success("Visualization process completed.")
+                elif user_input:
                     with st.spinner("Generating updated visualization..."):
-                        modified_d3_code = generate_and_validate_d3_code(merged_df, api_key, user_input)
+                        modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
                     st.session_state.current_viz = modified_d3_code
                     st.session_state.workflow_history.append({
                         "version": len(st.session_state.workflow_history) + 1,
@@ -515,7 +517,7 @@ def main():
                     })
                     st.rerun()
                 else:
-                    st.warning("Please enter a modification request.")
+                    st.warning("Please enter a modification request or type 'exit' to finish.")
 
             with st.expander("View/Edit Visualization Code"):
                 code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
@@ -535,7 +537,6 @@ def main():
                                     st.session_state.workflow_history.pop(0)
                                 st.empty()  # Clear the previous visualization
                                 display_visualization(st.session_state.current_viz)
-                                st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
                             else:
                                 st.error("Invalid D3.js code. Please check your code and try again.")
                         else:
@@ -553,7 +554,7 @@ def main():
                     if st.button(f"Revert to Step {i+1}"):
                         st.session_state.current_viz = step['code']
                         st.empty()  # Clear the previous visualization
-                        st.components.v1.html(display_visualization(st.session_state.current_viz), height=600)
+                        display_visualization(st.session_state.current_viz)
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
