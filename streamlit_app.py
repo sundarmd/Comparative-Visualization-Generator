@@ -567,6 +567,22 @@ def main():
                             st.subheader("Current Visualization")
                             display_visualization(st.session_state.current_viz)
 
+            if st.button("Download Visualization"):
+                # This will trigger the download function
+                st.write("Downloading...")
+                st.components.v1.html(
+                    """
+                    <script>
+                    if (window.downloadVisualization) {
+                        window.downloadVisualization();
+                    } else {
+                        console.error("Download function not available");
+                    }
+                    </script>
+                    """,
+                    height=0,
+                )
+
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             logger.error(f"Error in main function: {str(e)}")
