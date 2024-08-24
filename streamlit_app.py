@@ -245,7 +245,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4-1106-preview",  # Using a more capable model
+            model="gpt-4-0314",  # Updated to use gpt-4-0314
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
                 {"role": "user", "content": prompt}
@@ -296,7 +296,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
         
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4-0314",  # Updated to use gpt-4-0314
             messages=[
                 {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
                 {"role": "user", "content": refinement_prompt}
