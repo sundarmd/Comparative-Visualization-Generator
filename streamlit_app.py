@@ -338,13 +338,7 @@ def clean_d3_response(response: str) -> str:
 
 def display_visualization(d3_code: str):
     """
-    Display the D3.js visualization using an iframe.
-    
-    This function creates an iframe with the D3.js visualization code
-    and displays it within the Streamlit app without creating any external files.
-    
-    Args:
-        d3_code (str): The D3.js code to be executed.
+    Display the D3.js visualization using an iframe and add a download button.
     """
     html_content = f"""
     <!DOCTYPE html>
@@ -354,6 +348,7 @@ def display_visualization(d3_code: str):
     </head>
     <body>
         <div id="visualization"></div>
+        <button onclick="window.downloadSVG()">Download SVG</button>
         <script>
             {d3_code}
             // Create the SVG element
@@ -378,7 +373,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=800, height=500, scrolling=True)
+                            width=820, height=550, scrolling=True)
 
 def generate_fallback_visualization() -> str:
     """
@@ -568,38 +563,6 @@ def main():
                             st.subheader("Current Visualization")
                             display_visualization(st.session_state.current_viz)
 
-            if st.button("Download Visualization"):
-                # Get the SVG string
-                svg_string = st.components.v1.html(
-                    """
-                    <script>
-                    const svgString = window.getSVGString();
-                    window.parent.postMessage({type: "SVG_STRING", data: svgString}, "*");
-                    </script>
-                    """,
-                    height=0
-                )
-                
-                # Wait for the SVG string
-                svg_string = None
-                while svg_string is None:
-                    try:
-                        message = json.loads(st.session_state.svg_string)
-                        if message['type'] == 'SVG_STRING':
-                            svg_string = message['data']
-                    except:
-                        pass
-                
-                if svg_string:
-                    st.download_button(
-                        label="Download SVG",
-                        data=svg_string,
-                        file_name="visualization.svg",
-                        mime="image/svg+xml"
-                    )
-                else:
-                    st.error("Failed to generate SVG for download.")
-
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             logger.error(f"Error in main function: {str(e)}")
@@ -608,25 +571,6 @@ def main():
             st.code(traceback.format_exc())  # Display traceback for debugging
     else:
         st.info("Please upload both CSV files to visualize your data")
-
-# Add this to your Streamlit app to receive messages from JavaScript
-components.html(
-    """
-    <script>
-    window.addEventListener('message', function(event) {
-        if (event.data.type === 'SVG_STRING') {
-            window.parent.postMessage({
-                type: 'streamlit:setSessionState',
-                args: {
-                    svg_string: JSON.stringify(event.data)
-                }
-            }, '*');
-        }
-    });
-    </script>
-    """,
-    height=0
-)
 
 if __name__ == "__main__":
     main()
