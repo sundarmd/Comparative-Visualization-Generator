@@ -8,6 +8,7 @@ import traceback
 from typing import Optional, Dict, List
 import re
 import urllib.parse
+from streamlit import components
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -568,59 +569,36 @@ def main():
                             display_visualization(st.session_state.current_viz)
 
             if st.button("Download Visualization"):
-                # Get the SVG data from the D3.js code
-                svg_data = st.components.v1.html(
-                    f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <script src="https://d3js.org/d3.v7.min.js"></script>
-                    </head>
-                    <body>
-                        <div id="visualization"></div>
-                        <script>
-                            {st.session_state.current_viz}
-                            // Create the SVG element
-                            const svgElement = d3.select("#visualization")
-                                .append("svg")
-                                .attr("width", 800)
-                                .attr("height", 500)
-                                .node();
-                            
-                            // Get the data from the parent window
-                            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-                            
-                            // Call the createVisualization function
-                            createVisualization(vizData, svgElement);
-                            
-                            // Add function to get SVG data
-                            function getSVGData() {{
-                                const svgData = new XMLSerializer().serializeToString(svgElement);
-                                return svgData;
-                            }}
-                            
-                            // Expose the function to get SVG data
-                            window.getSVGData = getSVGData;
-                        </script>
-                    </body>
-                    </html>
+                # Get the SVG string
+                svg_string = st.components.v1.html(
+                    """
+                    <script>
+                    const svgString = window.getSVGString();
+                    window.parent.postMessage({type: "SVG_STRING", data: svgString}, "*");
+                    </script>
                     """,
-                    height=0,
+                    height=0
                 )
-                # Wait for the SVG data
-                svg_data = None
-                while svg_data is None:
-                    message = st.session_state.get('svg_data')
-                    if message and message.get('type') == 'SVG_DATA':
-                        svg_data = message.get('data')
                 
-                # Offer the SVG data for download
-                st.download_button(
-                    label="Download SVG",
-                    data=svg_data,
-                    file_name="visualization.svg",
-                    mime="image/svg+xml"
-                )
+                # Wait for the SVG string
+                svg_string = None
+                while svg_string is None:
+                    try:
+                        message = json.loads(st.session_state.svg_string)
+                        if message['type'] == 'SVG_STRING':
+                            svg_string = message['data']
+                    except:
+                        pass
+                
+                if svg_string:
+                    st.download_button(
+                        label="Download SVG",
+                        data=svg_string,
+                        file_name="visualization.svg",
+                        mime="image/svg+xml"
+                    )
+                else:
+                    st.error("Failed to generate SVG for download.")
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
@@ -631,19 +609,16 @@ def main():
     else:
         st.info("Please upload both CSV files to visualize your data")
 
-# Add this somewhere in your app to receive messages from JavaScript
-if 'svg_data' not in st.session_state:
-    st.session_state.svg_data = None
-
-st.components.html(
+# Add this to your Streamlit app to receive messages from JavaScript
+components.html(
     """
     <script>
     window.addEventListener('message', function(event) {
-        if (event.data.type === 'SVG_DATA') {
+        if (event.data.type === 'SVG_STRING') {
             window.parent.postMessage({
-                type: 'streamlit:set_session_state',
-                data: {
-                    svg_data: event.data
+                type: 'streamlit:setSessionState',
+                args: {
+                    svg_string: JSON.stringify(event.data)
                 }
             }, '*');
         }
