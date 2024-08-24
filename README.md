@@ -16,6 +16,9 @@ You can play with the [Live Demo](https://chatbotv01.streamlit.app/) here
 
 ![image](https://github.com/user-attachments/assets/6e544d91-8a5b-4a70-b944-e18e9c6de149)
 
+![image](https://github.com/user-attachments/assets/4ec8041b-8471-4933-9f56-71c1e3bb2aee)
+
+
 ## Features
 
 1. The nature of visualization will be comparative always
