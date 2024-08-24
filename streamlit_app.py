@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Define MAX_WORKFLOW_HISTORY constant
-MAX_WORKFLOW_HISTORY = 10
+MAX_WORKFLOW_HISTORY = 20
 
 # Initialize session state
 if 'workflow_history' not in st.session_state:
