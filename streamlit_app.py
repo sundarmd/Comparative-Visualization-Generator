@@ -568,19 +568,58 @@ def main():
                             display_visualization(st.session_state.current_viz)
 
             if st.button("Download Visualization"):
-                # This will trigger the download function
-                st.write("Downloading...")
-                st.components.v1.html(
-                    """
-                    <script>
-                    if (window.downloadVisualization) {
-                        window.downloadVisualization();
-                    } else {
-                        console.error("Download function not available");
-                    }
-                    </script>
+                # Get the SVG data from the D3.js code
+                svg_data = st.components.v1.html(
+                    f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <script src="https://d3js.org/d3.v7.min.js"></script>
+                    </head>
+                    <body>
+                        <div id="visualization"></div>
+                        <script>
+                            {st.session_state.current_viz}
+                            // Create the SVG element
+                            const svgElement = d3.select("#visualization")
+                                .append("svg")
+                                .attr("width", 800)
+                                .attr("height", 500)
+                                .node();
+                            
+                            // Get the data from the parent window
+                            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
+                            
+                            // Call the createVisualization function
+                            createVisualization(vizData, svgElement);
+                            
+                            // Add function to get SVG data
+                            function getSVGData() {{
+                                const svgData = new XMLSerializer().serializeToString(svgElement);
+                                return svgData;
+                            }}
+                            
+                            // Expose the function to get SVG data
+                            window.getSVGData = getSVGData;
+                        </script>
+                    </body>
+                    </html>
                     """,
                     height=0,
+                )
+                # Wait for the SVG data
+                svg_data = None
+                while svg_data is None:
+                    message = st.session_state.get('svg_data')
+                    if message and message.get('type') == 'SVG_DATA':
+                        svg_data = message.get('data')
+                
+                # Offer the SVG data for download
+                st.download_button(
+                    label="Download SVG",
+                    data=svg_data,
+                    file_name="visualization.svg",
+                    mime="image/svg+xml"
                 )
 
         except Exception as e:
@@ -591,6 +630,28 @@ def main():
             st.code(traceback.format_exc())  # Display traceback for debugging
     else:
         st.info("Please upload both CSV files to visualize your data")
+
+# Add this somewhere in your app to receive messages from JavaScript
+if 'svg_data' not in st.session_state:
+    st.session_state.svg_data = None
+
+st.components.html(
+    """
+    <script>
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'SVG_DATA') {
+            window.parent.postMessage({
+                type: 'streamlit:set_session_state',
+                data: {
+                    svg_data: event.data
+                }
+            }, '*');
+        }
+    });
+    </script>
+    """,
+    height=0
+)
 
 if __name__ == "__main__":
     main()
