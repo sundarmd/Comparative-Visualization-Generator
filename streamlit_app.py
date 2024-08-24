@@ -496,8 +496,12 @@ def main():
                         "code": d3_code
                     })
 
-            st.subheader("Current Visualization")
-            with st.spinner("Preparing visualization..."):
+            # Create a placeholder for the visualization
+            viz_placeholder = st.empty()
+
+            # Display the current visualization
+            with viz_placeholder.container():
+                st.subheader("Current Visualization")
                 display_visualization(st.session_state.current_viz)
 
             st.subheader("Modify Visualization")
@@ -515,7 +519,10 @@ def main():
                         "request": user_input,
                         "code": modified_d3_code
                     })
-                    st.rerun()
+                    # Update the visualization in place
+                    with viz_placeholder.container():
+                        st.subheader("Current Visualization")
+                        display_visualization(st.session_state.current_viz)
                 else:
                     st.warning("Please enter a modification request or type 'exit' to finish.")
 
@@ -535,8 +542,10 @@ def main():
                                 })
                                 if len(st.session_state.workflow_history) > MAX_WORKFLOW_HISTORY:
                                     st.session_state.workflow_history.pop(0)
-                                st.empty()  # Clear the previous visualization
-                                display_visualization(st.session_state.current_viz)
+                                # Update the visualization in place
+                                with viz_placeholder.container():
+                                    st.subheader("Current Visualization")
+                                    display_visualization(st.session_state.current_viz)
                             else:
                                 st.error("Invalid D3.js code. Please check your code and try again.")
                         else:
@@ -553,8 +562,10 @@ def main():
                     st.write(f"Request: {step['request']}")
                     if st.button(f"Revert to Step {i+1}"):
                         st.session_state.current_viz = step['code']
-                        st.empty()  # Clear the previous visualization
-                        display_visualization(st.session_state.current_viz)
+                        # Update the visualization in place
+                        with viz_placeholder.container():
+                            st.subheader("Current Visualization")
+                            display_visualization(st.session_state.current_viz)
 
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
