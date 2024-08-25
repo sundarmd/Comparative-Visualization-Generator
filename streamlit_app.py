@@ -180,41 +180,42 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     base_prompt = f"""
     # D3.js Code Generation Task
 
-    Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
+    Generate ONLY D3.js version 7 code for a sophisticated, interactive, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
 
     Critical Requirements for D3.js Visualization:
     1. Create a function named createVisualization(data, svgElement)
     2. Always add an appropriate title to the visualization
-    3. Always have pan, zoom, brush, crosshair, tooltip functionality 
-    4. Always have legend, axes, data points, interactive axes, responsive design, accessibility and performance optimization
-    5. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
-    6. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
-    7. Add a subtle background rectangle with rounded corners
-    8. Create scales for x-axis, y-axis, and color.    
-        - X-axis: d3.scaleBand()
-        - Y-axis: d3.scaleLinear()
-    9. Implement an animated area chart with gradient fill where applicable.
-    10. Add an animated line chart on top of the area chart 
-        - Use d3.line() to define the line shape
-        - Animate the line using d3.transition() and attrTween('d', function(d))
-        - Implement path interpolation with d3.interpolate() for smooth animation
-    11. Add chart title and axis labels using d3.text()
-    12. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
-    13. Implement interactive data points with hover effects and smooth transitions.
-    14. Design an informative tooltip that appears on hover and can be locked on click.
-    15. Create a dynamic and interactive legend that highlights data on hover.
-    16. Implement zooming and panning functionality.
-    17. Add a crosshair effect for precise data reading.
-    18. Implement a brush for range selection.
-    19. Ensure smooth color transitions and micro-interactions.
-    20. Include error checking for invalid data formats and handle missing data.
-    21. Optimize performance using efficient D3 methods and requestAnimationFrame.
-    22. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
-    23. Implement responsive design that adjusts to window resizing.
-    24. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
-    25. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
-    26. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
-   
+    3. Always have grid lines on the visualization
+    4. Always have a legend on the visualization that displays the color/pattern for each data source and category
+    5. Implement a responsive SVG canvas with margins: const svgWidth = 1200, svgHeight = 700
+    6. Utilize d3.select() for DOM manipulation and d3.data() for data binding
+    7. Implement advanced scales: d3.scaleLinear(), d3.scaleBand(), d3.scaleTime(), d3.scaleOrdinal(d3.schemeCategory10)
+    8. Create dynamic, animated axes using d3.axisBottom(), d3.axisLeft() with custom tick formatting
+    9. Implement smooth transitions and animations using d3.transition() and d3.easeCubic
+    10. Utilize d3.line(), d3.area(), d3.arc() for creating complex shapes and paths
+    11. Implement interactivity: d3.brush(), d3.zoom(), d3.drag() for user interaction
+    12. Use d3.interpolate() for smooth color and value transitions
+    13. Implement advanced layouts: d3.hierarchy(), d3.treemap(), d3.pack() for hierarchical data
+    14. Utilize d3.forceSimulation() for force-directed graph layouts
+    15. Implement d3.geoPath() and d3.geoProjection() for geographical visualizations
+    16. Use d3.contours() and d3.density2D() for density and contour visualizations
+    17. Implement d3.voronoi() for proximity-based visualizations
+    18. Utilize d3.chord() and d3.ribbon() for relationship visualizations
+    19. Implement advanced event handling with d3.on() for mouseover, click, etc.
+    20. Use d3.format() for number formatting in tooltips and labels
+    21. Implement d3.timeFormat() for date/time formatting
+    22. Utilize d3.range() and d3.shuffle() for data generation and randomization
+    23. Implement d3.nest() for data restructuring and aggregation
+    24. Use d3.queue() for asynchronous data loading and processing
+    25. Implement accessibility features using ARIA attributes and d3-textwrap
+    26. Optimize performance using d3.quadtree() for spatial indexing
+    27. Implement responsive design using d3.select(window).on("resize", ...)
+    28. Focus on creating a comparative visualization that highlights data differences
+    29. Implement error handling for invalid data formats and gracefully handle missing data
+    30. Create an interactive, filterable legend using d3.dispatch() for coordinated views
+    31. Implement crosshair functionality for precise data reading
+    32. Add a subtle, styled background using d3.select().append("rect") with rounded corners
+    33. Ensure the visualization updates smoothly when data changes or on user interaction
 
     Data Schema:
     {schema_str}
@@ -368,7 +369,7 @@ def display_visualization(d3_code: str):
     </head>
     <body>
         <div id="visualization"></div>
-        <button onclick="window.downloadSVG()">Download SVG</button>
+        <button onclick="downloadSVG()">Download SVG</button>
         <script>
             {d3_code}
             // Create the SVG element
@@ -383,6 +384,19 @@ def display_visualization(d3_code: str):
             
             // Call the createVisualization function
             createVisualization(vizData, svgElement);
+
+            // Function to download the SVG
+            function downloadSVG() {{
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgData], {{type: "image/svg+xml;charset=utf-8"}});
+                const svgUrl = URL.createObjectURL(svgBlob);
+                const downloadLink = document.createElement("a");
+                downloadLink.href = svgUrl;
+                downloadLink.download = "visualization.svg";
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+            }}
         </script>
     </body>
     </html>
