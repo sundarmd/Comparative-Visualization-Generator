@@ -182,19 +182,36 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
 
-    Critical Requirements:
+    Critical Requirements for D3.js Visualization:
     1. Create a function named createVisualization(data, svgElement)
-    2. Implement a visualization that explicitly compares data from two CSV files:
-       - Use different colors or patterns for each data source
-       - Include a legend clearly indicating which color/pattern represents which data source
-    3. Solve the overlapping labels problem:
-       - Rotate labels if necessary (e.g., 45-degree angle)
-       - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-       - Implement label truncation or abbreviation for long names
-    4. Ensure appropriate spacing between bars or data points
-    5. Add tooltips showing full information on hover
-    6. Implement responsive design to fit various screen sizes
-    7. Include smooth transitions for any data updates
+    2. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
+    3. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
+    4. Add a subtle background rectangle with rounded corners
+    5. Create scales for x-axis, y-axis, and color.    
+        - X-axis: d3.scaleBand()
+        - Y-axis: d3.scaleLinear()
+    6. Implement an animated area chart with gradient fill where applicable.
+    7. Add an animated line chart on top of the area chart 
+        - Use d3.line() to define the line shape
+        - Animate the line using d3.transition() and attrTween('d', function(d))
+        - Implement path interpolation with d3.interpolate() for smooth animation
+    8. Add chart title and axis labels using d3.text()
+    9. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
+    10. Implement interactive data points with hover effects and smooth transitions.
+    11. Design an informative tooltip that appears on hover and can be locked on click.
+    12. Create a dynamic and interactive legend that highlights data on hover.
+    13. Implement zooming and panning functionality.
+    14. Add a crosshair effect for precise data reading.
+    15. Implement a brush for range selection.
+    16. Ensure smooth color transitions and micro-interactions.
+    17. Include error checking for invalid data formats and handle missing data.
+    18. Optimize performance using efficient D3 methods and requestAnimationFrame.
+    19. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
+    20. Implement responsive design that adjusts to window resizing.
+    21. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
+    22. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
+    23. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
+   
 
     Data Schema:
     {schema_str}
