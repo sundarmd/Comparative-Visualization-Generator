@@ -185,33 +185,35 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Critical Requirements for D3.js Visualization:
     1. Create a function named createVisualization(data, svgElement)
     2. Always add an appropriate title to the visualization
-    3. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
-    4. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
-    5. Add a subtle background rectangle with rounded corners
-    6. Create scales for x-axis, y-axis, and color.    
+    3. Always have pan, zoom, brush, crosshair, tooltip functionality 
+    4. Always have legend, axes, data points, interactive axes, responsive design, accessibility and performance optimization
+    5. Set up an SVG canvas with margins, width, and height as specified - const svgWidth = 1200, svgHeight = 700
+    6. Implement a color palette using d3.scaleOrdinal(d3.schemePastel1)
+    7. Add a subtle background rectangle with rounded corners
+    8. Create scales for x-axis, y-axis, and color.    
         - X-axis: d3.scaleBand()
         - Y-axis: d3.scaleLinear()
-    7. Implement an animated area chart with gradient fill where applicable.
-    8. Add an animated line chart on top of the area chart 
+    9. Implement an animated area chart with gradient fill where applicable.
+    10. Add an animated line chart on top of the area chart 
         - Use d3.line() to define the line shape
         - Animate the line using d3.transition() and attrTween('d', function(d))
         - Implement path interpolation with d3.interpolate() for smooth animation
-    9. Add chart title and axis labels using d3.text()
-    10. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
-    11. Implement interactive data points with hover effects and smooth transitions.
-    12. Design an informative tooltip that appears on hover and can be locked on click.
-    13. Create a dynamic and interactive legend that highlights data on hover.
-    14. Implement zooming and panning functionality.
-    15. Add a crosshair effect for precise data reading.
-    16. Implement a brush for range selection.
-    17. Ensure smooth color transitions and micro-interactions.
-    18. Include error checking for invalid data formats and handle missing data.
-    19. Optimize performance using efficient D3 methods and requestAnimationFrame.
-    20. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
-    21. Implement responsive design that adjusts to window resizing.
-    22. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
-    23. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
-    24. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
+    11. Add chart title and axis labels using d3.text()
+    12. Create interactive axes with proper formatting and rotated labels (45 degrees) if needed.
+    13. Implement interactive data points with hover effects and smooth transitions.
+    14. Design an informative tooltip that appears on hover and can be locked on click.
+    15. Create a dynamic and interactive legend that highlights data on hover.
+    16. Implement zooming and panning functionality.
+    17. Add a crosshair effect for precise data reading.
+    18. Implement a brush for range selection.
+    19. Ensure smooth color transitions and micro-interactions.
+    20. Include error checking for invalid data formats and handle missing data.
+    21. Optimize performance using efficient D3 methods and requestAnimationFrame.
+    22. Ensure accessibility with ARIA labels and d3-textwrap for long labels.
+    23. Implement responsive design that adjusts to window resizing.
+    24. Remember to comply with the user's request intelligently, updating existing code if it's an update request, or creating new code if it's a new visualization request. Always return the complete, updated code.
+    25. The nature of visualization is comparative. So the user will be comparing multiple data sets. So the visualization must explicitly show the comparison and highlight the differences.
+    26. You must understand how exactly the source data is different from each other and show the differences in the visualization intelligently by pointing out the differentiating factors.
    
 
     Data Schema:
