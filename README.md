@@ -18,6 +18,8 @@ You can play with the [Live Demo](https://chatbotv01.streamlit.app/) here
 
 ![image](https://github.com/user-attachments/assets/4ec8041b-8471-4933-9f56-71c1e3bb2aee)
 
+![image](https://github.com/user-attachments/assets/680bbde2-f91e-43d5-9b45-bdf4f8d94be4)
+
 
 ## Features
 
