@@ -14,11 +14,11 @@ You can play with the [Live Demo](https://chatbotv01.streamlit.app/) here
 
 3. Iteratively interact to re-generate visualizations based on the data through natural language queries
 
-![image](https://github.com/user-attachments/assets/6e544d91-8a5b-4a70-b944-e18e9c6de149)
+![image](https://github.com/user-attachments/assets/680bbde2-f91e-43d5-9b45-bdf4f8d94be4)
 
 ![image](https://github.com/user-attachments/assets/4ec8041b-8471-4933-9f56-71c1e3bb2aee)
 
-![image](https://github.com/user-attachments/assets/680bbde2-f91e-43d5-9b45-bdf4f8d94be4)
+![image](https://github.com/user-attachments/assets/6e544d91-8a5b-4a70-b944-e18e9c6de149)
 
 
 ## Features
