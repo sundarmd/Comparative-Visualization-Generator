@@ -1,6 +1,6 @@
 # 🎨 Comparative Visualization Generator
 
-You can play with the [Live Demo](https://chatbotv01.streamlit.app/) here
+You can play with the [Live Demo](https://comparative-visualization-generator.streamlit.app/) here
 
 ## How it works?
 
