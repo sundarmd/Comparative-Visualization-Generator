@@ -173,7 +173,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
 
     try:
-        response = openai.ChatCompletion.create(
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
@@ -215,7 +216,8 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
 
         try:
-            response = openai.ChatCompletion.create(
+            client = openai.OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
