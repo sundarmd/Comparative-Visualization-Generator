@@ -21,6 +21,15 @@ MAX_WORKFLOW_HISTORY = 20
 if 'workflow_history' not in st.session_state:
     st.session_state.workflow_history = []  # Stores the history of visualization changes
 if 'current_viz' not in st.session_state:
+    with st.spinner():
+        display_loading_animation("Generating initial visualization...")
+        initial_d3_code = generate_initial_d3_code(preprocessed_df, api_key)
+        st.session_state.current_viz = initial_d3_code
+        st.session_state.workflow_history = [{
+            "version": 1,
+            "request": "Initial visualization",
+            "code": initial_d3_code
+        }]
     st.session_state.current_viz = None  # Stores the current D3.js visualization code
 if 'preprocessed_df' not in st.session_state:
     st.session_state.preprocessed_df = None  # Stores the preprocessed DataFrame
