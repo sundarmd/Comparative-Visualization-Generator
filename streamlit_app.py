@@ -571,14 +571,14 @@ def main():
                         display_loading_animation()
                     
                     # Generate new visualization
-                    with st.spinner("Generating updated visualization..."):
-                        modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
-                        st.session_state.current_viz = modified_d3_code
-                        st.session_state.workflow_history.append({
-                            "version": len(st.session_state.workflow_history) + 1,
-                            "request": user_input,
-                            "code": modified_d3_code
-                        })
+                    #with st.spinner("Generating updated visualization..."):
+                    modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
+                    st.session_state.current_viz = modified_d3_code
+                    st.session_state.workflow_history.append({
+                        "version": len(st.session_state.workflow_history) + 1,
+                        "request": user_input,
+                        "code": modified_d3_code
+                    })
                     
                     # Update the visualization in place
                     with viz_placeholder.container():
