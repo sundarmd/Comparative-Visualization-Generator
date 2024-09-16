@@ -23,7 +23,7 @@ if 'workflow_history' not in st.session_state:
 if 'current_viz' not in st.session_state:
     with st.spinner():
         display_loading_animation("Generating initial visualization...")
-        initial_d3_code = generate_initial_d3_code(preprocessed_df, api_key)
+        initial_d3_code = generate_and_validate_d3_code(preprocessed_df, api_key)
         st.session_state.current_viz = initial_d3_code
         st.session_state.workflow_history = [{
             "version": 1,
