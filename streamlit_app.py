@@ -17,16 +17,17 @@ logger = logging.getLogger(__name__)
 # Define MAX_WORKFLOW_HISTORY constant
 MAX_WORKFLOW_HISTORY = 20
 
-def display_loading_animation():
-    loading_html = """
-    <div class="loading-spinner" style="display: flex; justify-content: center; align-items: center; height: 500px;">
+def display_loading_animation(message="Loading..."):
+    loading_html = f"""
+    <div class="loading-spinner" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 500px;">
         <div class="spinner" style="border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 20px;">{message}</p>
     </div>
     <style>
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
     </style>
     """
     return st.components.v1.html(loading_html, height=500)
@@ -517,13 +518,14 @@ def generate_fallback_visualization() -> str:
 
 def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """Generate, validate, and if necessary, refine D3 code."""
-    initial_code = generate_d3_code(df, api_key, user_input)
-    cleaned_code = clean_d3_response(initial_code)
-    
-    if validate_d3_code(cleaned_code):
-        return cleaned_code
-    else:
-        return refine_d3_code(cleaned_code, api_key)
+    try:
+        d3_code = generate_d3_code(df, api_key, user_input)
+        if not validate_d3_code(d3_code):
+            d3_code = refine_d3_code(d3_code, api_key)
+        return d3_code
+    except Exception as e:
+        logger.error(f"Error in generate_and_validate_d3_code: {str(e)}")
+        raise
 
 def main():
     st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
@@ -552,14 +554,25 @@ def main():
                 st.dataframe(st.session_state.preprocessed_df.head())
             
             if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
-                with st.spinner("Generating initial D3 visualization..."):
-                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
-                    st.session_state.current_viz = d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": "Initial comparative visualization",
-                        "code": d3_code
-                    })
+                with st.spinner():
+                    viz_placeholder = st.empty()
+                    with viz_placeholder.container():
+                        display_loading_animation("Generating initial visualization...")
+                    try:
+                        initial_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
+                        st.session_state.current_viz = initial_d3_code
+                        st.session_state.workflow_history = [{
+                            "version": 1,
+                            "request": "Initial visualization",
+                            "code": initial_d3_code
+                        }]
+                    except Exception as e:
+                        st.error(f"Error generating initial visualization: {str(e)}")
+                        st.session_state.current_viz = generate_fallback_visualization()
+                    finally:
+                        with viz_placeholder.container():
+                            st.subheader("Current Visualization")
+                            display_visualization(st.session_state.current_viz)
 
             # Create a placeholder for the visualization
             viz_placeholder = st.empty()
@@ -576,25 +589,24 @@ def main():
                 if user_input.lower().strip() == 'exit':
                     st.success("Visualization process completed.")
                 elif user_input:
-                    # Replace current visualization with loading animation
+                    viz_placeholder = st.empty()
                     with viz_placeholder.container():
-                        st.subheader("Updating Visualization")
-                        display_loading_animation()
+                        display_loading_animation("Generating updated visualization...")
                     
-                    # Generate new visualization
-                    #with st.spinner("Generating updated visualization..."):
-                    modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
-                    st.session_state.current_viz = modified_d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": user_input,
-                        "code": modified_d3_code
-                    })
-                    
-                    # Update the visualization in place
-                    with viz_placeholder.container():
-                        st.subheader("Current Visualization")
-                        display_visualization(st.session_state.current_viz)
+                    try:
+                        modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
+                        st.session_state.current_viz = modified_d3_code
+                        st.session_state.workflow_history.append({
+                            "version": len(st.session_state.workflow_history) + 1,
+                            "request": user_input,
+                            "code": modified_d3_code
+                        })
+                    except Exception as e:
+                        st.error(f"Error updating visualization: {str(e)}")
+                    finally:
+                        with viz_placeholder.container():
+                            st.subheader("Current Visualization")
+                            display_visualization(st.session_state.current_viz)
                 else:
                     st.warning("Please enter a modification request or type 'exit' to finish.")
 
