@@ -341,6 +341,20 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     logger.warning("Failed to generate valid D3 code after maximum attempts")
     return initial_code
 
+def display_loading_animation():
+    loading_html = """
+    <div class="loading-spinner" style="display: flex; justify-content: center; align-items: center; height: 500px;">
+        <div class="spinner" style="border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+    </div>
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    """
+    return st.components.v1.html(loading_html, height=500)
+
 def clean_d3_response(response: str) -> str:
     """
     Clean the LLM response to ensure it only contains D3 code.
