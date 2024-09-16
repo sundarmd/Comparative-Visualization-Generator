@@ -87,11 +87,20 @@ def validate_d3_code(code: str) -> bool:
         return False
     return True
 
+def clean_d3_response(response: str) -> str:
+    # Remove any code block markers
+    response = re.sub(r'```[a-z]*', '', response)
+    response = response.replace('```', '')
+    # Remove any leading/trailing quotes
+    response = response.strip('\'" \n')
+    return response
+
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     logger.info("Starting D3 code generation")
     data_sample = df.head(50).to_dict(orient='records')
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
+    openai.api_key = api_key
 
     base_prompt = f"""
     # D3.js Code Generation Task
@@ -113,37 +122,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     12. Utilize d3.line(), d3.area(), d3.arc() for creating complex shapes and paths
     13. Implement interactivity: d3.brush(), d3.zoom(), d3.drag() for user interaction
     14. Use d3.interpolate() for smooth color and value transitions
-    15. Implement advanced layouts: d3.hierarchy(), d3.treemap(), d3.pack() for hierarchical data
-    16. Utilize d3.forceSimulation() for force-directed graph layouts
-    17. Implement d3.geoPath() and d3.geoProjection() for geographical visualizations
-    18. Use d3.contours() and d3.density2D() for density and contour visualizations
-    19. Implement d3.voronoi() for proximity-based visualizations
-    20. Utilize d3.chord() and d3.ribbon() for relationship visualizations
-    21. Implement advanced event handling with d3.on() for mouseover, click, etc.
-    22. Use d3.format() for number formatting in tooltips and labels
-    23. Implement d3.timeFormat() for date/time formatting
-    24. Utilize d3.range() and d3.shuffle() for data generation and randomization
-    25. Implement d3.nest() for data restructuring and aggregation
-    26. Use d3.queue() for asynchronous data loading and processing
-    27. Implement accessibility features using ARIA attributes and d3-textwrap
-    28. Optimize performance using d3.quadtree() for spatial indexing
-    29. Implement responsive design using d3.select(window).on("resize", ...)
-    30. Focus on creating a comparative visualization that highlights data differences
-    31. Implement error handling for invalid data formats and gracefully handle missing data
-    32. Create an interactive, filterable legend using d3.dispatch() for coordinated views
-    33. Implement crosshair functionality for precise data reading
-    34. Add a subtle, styled background using d3.select().append("rect") with rounded corners
-    35. Ensure the visualization updates smoothly when data changes or on user interaction
-    36. Use d3.transition().duration() to control animation speed, with longer durations for more complex animations
-    37. Implement staggered animations using d3.transition().delay() to create cascading effects
-    38. Utilize d3.easeElastic, d3.easeBack, or custom easing functions for more dynamic animations
-    39. Implement enter, update, and exit animations for data changes
-    40. Use d3.interpolateString() for smooth transitions between different text values
-    41. Implement path animations using d3.interpolate() for custom interpolators
-    42. Create looping animations using d3.timer() for continuous effects
-    43. Implement chained transitions using .transition().transition() for sequential animations
-    44. Use d3.active() to coordinate multiple animations and prevent overlapping
-    45. Implement FLIP (First, Last, Invert, Play) animations for layout changes
+    15. Focus on creating a comparative visualization that highlights data differences
 
     Data Schema:
     {schema_str}
@@ -194,8 +173,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
 
     try:
-        client = openai.OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
@@ -208,6 +186,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
 
+        d3_code = clean_d3_response(d3_code)
+
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
@@ -215,7 +195,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         raise
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
-    client = openai.OpenAI(api_key=api_key)
+    openai.api_key = api_key
 
     for attempt in range(max_attempts):
         if validate_d3_code(initial_code):
@@ -235,7 +215,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
 
         try:
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
@@ -244,7 +224,8 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
                 temperature=0
             )
 
-            initial_code = clean_d3_response(response.choices[0].message.content)
+            initial_code = response.choices[0].message.content
+            initial_code = clean_d3_response(initial_code)
         except Exception as e:
             logger.error(f"Error refining D3 code: {str(e)}")
             st.error(f"Error refining D3 code:\n\n{str(e)}")
@@ -252,14 +233,6 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
 
     logger.warning("Failed to generate valid D3 code after maximum attempts")
     return initial_code
-
-def clean_d3_response(response: str) -> str:
-    response = response.replace("```javascript", "").replace("```", "")
-    clean_lines = [line for line in response.split('\n') if line.strip() and not line.strip().startswith('#')]
-    if not any(line.strip().startswith('function createVisualization') for line in clean_lines):
-        clean_lines.insert(0, 'function createVisualization(data, svgElement) {')
-        clean_lines.append('}')
-    return '\n'.join(clean_lines)
 
 def display_visualization(d3_code: str):
     html_content = f"""
@@ -372,8 +345,6 @@ def main():
                     }]
                 except Exception as e:
                     st.error(f"Error generating initial visualization:\n\n{str(e)}")
-                    # Optionally, you can decide whether to display the fallback visualization or not
-                    # st.session_state.current_viz = generate_fallback_visualization()
                 finally:
                     if st.session_state.current_viz:
                         with viz_placeholder.container():
