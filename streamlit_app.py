@@ -195,8 +195,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
 
     try:
-        response = openai.ChatCompletion.create(
-            model="GPT-4o",  # Changed from 'gpt-4' to 'gpt-3.5-turbo'
+        response = openai.chat_completions.create(  # Updated method call
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
                 {"role": "user", "content": prompt}
@@ -211,7 +211,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
-        st.error(f"Error generating D3 code: {str(e)}")  # Display error to user
+        st.error(f"Error generating D3 code:\n\n{str(e)}")  # Display error to user
         raise  # Re-raise the exception to be caught in the main function
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
@@ -235,8 +235,8 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
 
         try:
-            response = openai.ChatCompletion.create(
-                model="GPT-4o",  # Changed from 'gpt-4' to 'gpt-3.5-turbo'
+            response = openai.chat_completions.create(  # Updated method call
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
                     {"role": "user", "content": refinement_prompt}
@@ -247,7 +247,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
             initial_code = clean_d3_response(response['choices'][0]['message']['content'])
         except Exception as e:
             logger.error(f"Error refining D3 code: {str(e)}")
-            st.error(f"Error refining D3 code: {str(e)}")  # Display error to user
+            st.error(f"Error refining D3 code:\n\n{str(e)}")  # Display error to user
             raise  # Re-raise the exception to be caught in the main function
 
     logger.warning("Failed to generate valid D3 code after maximum attempts")
@@ -320,74 +320,6 @@ def display_visualization(d3_code: str):
     """
     st.components.v1.html(html_content, height=800, scrolling=True)
 
-def generate_fallback_visualization() -> str:
-    logger.info("Generating fallback visualization")
-    fallback_code = """
-    function createVisualization(data, svgElement) {
-        const margin = { top: 20, right: 20, bottom: 50, left: 50 };
-        const width = 1200 - margin.left - margin.right;
-        const height = 700 - margin.top - margin.bottom;
-
-        const svg = svgElement
-            .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-            .append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
-
-        const xKey = Object.keys(data[0])[0];
-        const yKey = Object.keys(data[0])[1];
-
-        const xScale = d3.scaleBand()
-            .domain(data.map(d => d[xKey]))
-            .range([0, width])
-            .padding(0.1);
-
-        const yScale = d3.scaleLinear()
-            .domain([0, d3.max(data, d => +d[yKey])])
-            .range([height, 0]);
-
-        svg.selectAll("rect")
-            .data(data)
-            .join("rect")
-            .attr("x", d => xScale(d[xKey]))
-            .attr("y", d => yScale(+d[yKey]))
-            .attr("width", xScale.bandwidth())
-            .attr("height", d => height - yScale(+d[yKey]))
-            .attr("fill", "steelblue");
-
-        svg.append("g")
-            .attr("transform", `translate(0, ${height})`)
-            .call(d3.axisBottom(xScale))
-            .selectAll("text")
-            .attr("transform", "rotate(-45)")
-            .style("text-anchor", "end");
-
-        svg.append("g")
-            .call(d3.axisLeft(yScale));
-
-        svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", -10)
-            .attr("text-anchor", "middle")
-            .style("font-size", "16px")
-            .text("Fallback Visualization");
-
-        svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", height + margin.bottom - 5)
-            .attr("text-anchor", "middle")
-            .text(xKey);
-
-        svg.append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("x", -height / 2)
-            .attr("y", -margin.left + 15)
-            .attr("text-anchor", "middle")
-            .text(yKey);
-    }
-    """
-    logger.info("Fallback visualization generated successfully")
-    return fallback_code
-
 def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     try:
         d3_code = generate_d3_code(df, api_key, user_input)
@@ -396,7 +328,7 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
         return d3_code
     except Exception as e:
         logger.error(f"Error in generate_and_validate_d3_code: {str(e)}")
-        st.error(f"Error in generate_and_validate_d3_code: {str(e)}")  # Display error to user
+        st.error(f"Error in generate_and_validate_d3_code:\n\n{str(e)}")  # Display error to user
         raise  # Re-raise the exception to be caught in the main function
 
 def main():
@@ -439,7 +371,7 @@ def main():
                         "code": initial_d3_code
                     }]
                 except Exception as e:
-                    st.error(f"Error generating initial visualization: {str(e)}")
+                    st.error(f"Error generating initial visualization:\n\n{str(e)}")
                     # Optionally, you can decide whether to display the fallback visualization or not
                     # st.session_state.current_viz = generate_fallback_visualization()
                 finally:
@@ -472,7 +404,7 @@ def main():
                         if len(st.session_state.workflow_history) > MAX_WORKFLOW_HISTORY:
                             st.session_state.workflow_history.pop(0)
                     except Exception as e:
-                        st.error(f"Error updating visualization: {str(e)}")
+                        st.error(f"Error updating visualization:\n\n{str(e)}")
                     finally:
                         if st.session_state.current_viz:
                             with viz_placeholder.container():
@@ -521,7 +453,7 @@ def main():
                             display_visualization(st.session_state.current_viz)
 
         except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
+            st.error(f"An error occurred:\n\n{str(e)}")
             logger.error(f"Error in main function: {str(e)}")
             logger.error(traceback.format_exc())
             st.error("An unexpected error occurred. Please try again or contact support if the problem persists.")
