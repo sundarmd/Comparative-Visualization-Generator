@@ -92,7 +92,6 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     data_sample = df.head(50).to_dict(orient='records')
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
-    openai.api_key = api_key
 
     base_prompt = f"""
     # D3.js Code Generation Task
@@ -195,7 +194,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
 
     try:
-        response = openai.ChatCompletion.create(  # Updated method call
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
@@ -204,18 +204,18 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
             temperature=0
         )
 
-        d3_code = response.choices[0].message.content  # Updated access to response content
+        d3_code = response.choices[0].message.content
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
 
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
-        st.error(f"Error generating D3 code:\n\n{str(e)}")  # Display error to user
-        raise  # Re-raise the exception to be caught in the main function
+        st.error(f"Error generating D3 code:\n\n{str(e)}")
+        raise
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
-    openai.api_key = api_key
+    client = openai.OpenAI(api_key=api_key)
 
     for attempt in range(max_attempts):
         if validate_d3_code(initial_code):
@@ -235,7 +235,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
 
         try:
-            response = openai.ChatCompletion.create(  # Updated method call
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
@@ -244,11 +244,11 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
                 temperature=0
             )
 
-            initial_code = clean_d3_response(response.choices[0].message.content)  # Updated access to response content
+            initial_code = clean_d3_response(response.choices[0].message.content)
         except Exception as e:
             logger.error(f"Error refining D3 code: {str(e)}")
-            st.error(f"Error refining D3 code:\n\n{str(e)}")  # Display error to user
-            raise  # Re-raise the exception to be caught in the main function
+            st.error(f"Error refining D3 code:\n\n{str(e)}")
+            raise
 
     logger.warning("Failed to generate valid D3 code after maximum attempts")
     return initial_code
