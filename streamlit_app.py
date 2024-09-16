@@ -17,10 +17,26 @@ logger = logging.getLogger(__name__)
 # Define MAX_WORKFLOW_HISTORY constant
 MAX_WORKFLOW_HISTORY = 20
 
+def display_loading_animation(message="Generating visualization..."):
+    loading_html = f"""
+    <div class="loading-spinner" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 500px;">
+        <div class="spinner" style="border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+        <p style="margin-top: 20px; font-size: 18px;">{message}</p>
+    </div>
+    <style>
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+    </style>
+    """
+    return st.components.v1.html(loading_html, height=500)
+
 # Initialize session state
 if 'workflow_history' not in st.session_state:
     st.session_state.workflow_history = []  # Stores the history of visualization changes
 if 'current_viz' not in st.session_state:
+    display_loading_animation()
     st.session_state.current_viz = None  # Stores the current D3.js visualization code
 if 'preprocessed_df' not in st.session_state:
     st.session_state.preprocessed_df = None  # Stores the preprocessed DataFrame
