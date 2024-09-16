@@ -400,8 +400,8 @@ def display_visualization(d3_code: str):
             // Create the SVG element
             const svgElement = d3.select("#visualization")
                 .append("svg")
-                .attr("width", 1600)
-                .attr("height", 800)
+                .attr("width", 1920)
+                .attr("height",1080)
                 .node();
             
             // Get the data from the parent window
@@ -432,7 +432,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=1700, height=900, scrolling=True)
+                            width=1920, height=1080, scrolling=True)
 
 def generate_fallback_visualization() -> str:
     """
