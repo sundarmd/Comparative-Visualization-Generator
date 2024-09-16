@@ -6,7 +6,6 @@ import json
 import logging
 import traceback
 import re
-import urllib.parse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -178,6 +177,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         7. Add tooltips showing full information on hover
         8. Implement responsive design to fit various screen sizes
         9. Include smooth transitions for any data updates
+
         Data Schema:
         {schema_str}
 
@@ -196,7 +196,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="GPT-4o",  # Changed from 'gpt-4' to 'gpt-3.5-turbo'
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
                 {"role": "user", "content": prompt}
@@ -211,7 +211,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
-        return generate_fallback_visualization()
+        st.error(f"Error generating D3 code: {str(e)}")  # Display error to user
+        raise  # Re-raise the exception to be caught in the main function
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
     openai.api_key = api_key
@@ -233,16 +234,21 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         Return ONLY the corrected D3 code without any explanations or comments.
         """
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
-                {"role": "user", "content": refinement_prompt}
-            ],
-            temperature=0
-        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="GPT-4o",  # Changed from 'gpt-4' to 'gpt-3.5-turbo'
+                messages=[
+                    {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
+                    {"role": "user", "content": refinement_prompt}
+                ],
+                temperature=0
+            )
 
-        initial_code = clean_d3_response(response['choices'][0]['message']['content'])
+            initial_code = clean_d3_response(response['choices'][0]['message']['content'])
+        except Exception as e:
+            logger.error(f"Error refining D3 code: {str(e)}")
+            st.error(f"Error refining D3 code: {str(e)}")  # Display error to user
+            raise  # Re-raise the exception to be caught in the main function
 
     logger.warning("Failed to generate valid D3 code after maximum attempts")
     return initial_code
@@ -390,7 +396,8 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
         return d3_code
     except Exception as e:
         logger.error(f"Error in generate_and_validate_d3_code: {str(e)}")
-        raise
+        st.error(f"Error in generate_and_validate_d3_code: {str(e)}")  # Display error to user
+        raise  # Re-raise the exception to be caught in the main function
 
 def main():
     st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
@@ -433,11 +440,13 @@ def main():
                     }]
                 except Exception as e:
                     st.error(f"Error generating initial visualization: {str(e)}")
-                    st.session_state.current_viz = generate_fallback_visualization()
+                    # Optionally, you can decide whether to display the fallback visualization or not
+                    # st.session_state.current_viz = generate_fallback_visualization()
                 finally:
-                    with viz_placeholder.container():
-                        st.subheader("Current Visualization")
-                        display_visualization(st.session_state.current_viz)
+                    if st.session_state.current_viz:
+                        with viz_placeholder.container():
+                            st.subheader("Current Visualization")
+                            display_visualization(st.session_state.current_viz)
             else:
                 with viz_placeholder.container():
                     st.subheader("Current Visualization")
@@ -465,14 +474,15 @@ def main():
                     except Exception as e:
                         st.error(f"Error updating visualization: {str(e)}")
                     finally:
-                        with viz_placeholder.container():
-                            st.subheader("Current Visualization")
-                            display_visualization(st.session_state.current_viz)
+                        if st.session_state.current_viz:
+                            with viz_placeholder.container():
+                                st.subheader("Current Visualization")
+                                display_visualization(st.session_state.current_viz)
                 else:
                     st.warning("Please enter a modification request or type 'exit' to finish.")
 
             with st.expander("View/Edit Visualization Code"):
-                code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
+                code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz or "", height=300, key="code_editor")
                 col1, col2, col3 = st.columns([1,1,2])
                 with col1:
                     edit_enabled = st.checkbox("Edit", key="edit_toggle")
