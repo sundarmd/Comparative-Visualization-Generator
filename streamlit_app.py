@@ -29,6 +29,20 @@ if 'update_viz' not in st.session_state:
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []  # Stores the chat history
 
+def display_loading_animation():
+    loading_html = """
+    <div class="loading-spinner" style="display: flex; justify-content: center; align-items: center; height: 500px;">
+        <div class="spinner" style="border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+    </div>
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    """
+    return st.components.v1.html(loading_html, height=500)
+
 def get_api_key() -> Optional[str]:
     """
     Securely retrieve the API key.
@@ -552,14 +566,21 @@ def main():
                 if user_input.lower().strip() == 'exit':
                     st.success("Visualization process completed.")
                 elif user_input:
+                    # Replace current visualization with loading animation
+                    with viz_placeholder.container():
+                        st.subheader("Updating Visualization")
+                        display_loading_animation()
+                    
+                    # Generate new visualization
                     with st.spinner("Generating updated visualization..."):
                         modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
-                    st.session_state.current_viz = modified_d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": user_input,
-                        "code": modified_d3_code
-                    })
+                        st.session_state.current_viz = modified_d3_code
+                        st.session_state.workflow_history.append({
+                            "version": len(st.session_state.workflow_history) + 1,
+                            "request": user_input,
+                            "code": modified_d3_code
+                        })
+                    
                     # Update the visualization in place
                     with viz_placeholder.container():
                         st.subheader("Current Visualization")
