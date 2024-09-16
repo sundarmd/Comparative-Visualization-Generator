@@ -400,8 +400,8 @@ def display_visualization(d3_code: str):
             // Create the SVG element
             const svgElement = d3.select("#visualization")
                 .append("svg")
-                .attr("width", 800)
-                .attr("height", 500)
+                .attr("width", 1500)
+                .attr("height", 700)
                 .node();
             
             // Get the data from the parent window
