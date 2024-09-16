@@ -195,7 +195,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
 
     try:
-        response = openai.chat_completions.create(  # Updated method call
+        response = openai.ChatCompletion.create(  # Updated method call
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
@@ -204,7 +204,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
             temperature=0
         )
 
-        d3_code = response['choices'][0]['message']['content']
+        d3_code = response.choices[0].message.content  # Updated access to response content
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
 
@@ -235,7 +235,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
 
         try:
-            response = openai.chat_completions.create(  # Updated method call
+            response = openai.ChatCompletion.create(  # Updated method call
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
@@ -244,7 +244,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
                 temperature=0
             )
 
-            initial_code = clean_d3_response(response['choices'][0]['message']['content'])
+            initial_code = clean_d3_response(response.choices[0].message.content)  # Updated access to response content
         except Exception as e:
             logger.error(f"Error refining D3 code: {str(e)}")
             st.error(f"Error refining D3 code:\n\n{str(e)}")  # Display error to user
