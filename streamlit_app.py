@@ -453,7 +453,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=1920, height=1080, scrolling=False)
+                            width=960, height=540, scrolling=False)
 
 def generate_fallback_visualization() -> str:
     """
