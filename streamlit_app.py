@@ -31,13 +31,47 @@ if 'chat_history' not in st.session_state:
 
 def display_loading_animation():
     loading_html = """
-    <div class="loading-spinner" style="display: flex; justify-content: center; align-items: center; height: 500px;">
-        <div class="spinner" style="border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+    <div class="loading-container" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 500px;">
+        <div class="loading-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+        </div>
+        <div class="loading-text">Loading...</div>
     </div>
     <style>
+        .loading-spinner {
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+        .spinner-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 4px solid transparent;
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+        }
+        .spinner-ring:nth-child(1) { animation-delay: -0.45s; }
+        .spinner-ring:nth-child(2) { animation-delay: -0.3s; }
+        .spinner-ring:nth-child(3) { animation-delay: -0.15s; }
+        .loading-text {
+            margin-top: 20px;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            color: #3498db;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
         }
     </style>
     """
