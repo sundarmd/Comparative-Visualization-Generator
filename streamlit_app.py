@@ -198,7 +198,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Critical Requirements for D3.js Visualization:
     1. Create a function named createVisualization(data, svgElement)
     2. Implement a responsive SVG that adjusts its size based on the content
-    3. Utilize the full width and height provided (1920x1080 pixels)
+    3. Utilize the full width and height provided (960x540 pixels)
     4. Implement zoom and pan functionality for exploring the data
     5. Ensure efficient use of space, minimizing empty areas
     6. Add appropriate margins, title, axes labels, and a legend
@@ -396,17 +396,28 @@ def display_visualization(d3_code: str):
     <html>
     <head>
         <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            #visualization {{
+                width: 100%;
+                height: 100vh;
+                overflow: hidden;
+            }}
+            svg {{
+                width: 100%;
+                height: 100%;
+            }}
+        </style>
     </head>
     <body>
         <div id="visualization"></div>
-        <button onclick="downloadSVG()">Download SVG</button>
+        <button onclick="downloadSVG()" style="position: absolute; top: 10px; right: 10px;">Download SVG</button>
         <script>
             {d3_code}
             // Create the SVG element
             const svgElement = d3.select("#visualization")
                 .append("svg")
-                .attr("width", 1920)
-                .attr("height",1080)
+                .attr("viewBox", "0 0 960 540")
+                .attr("preserveAspectRatio", "xMidYMid meet")
                 .node();
             
             // Get the data from the parent window
@@ -427,6 +438,11 @@ def display_visualization(d3_code: str):
                 downloadLink.click();
                 document.body.removeChild(downloadLink);
             }}
+
+            // Make the visualization responsive
+            window.addEventListener('resize', function() {{
+                d3.select(svgElement).attr("viewBox", "0 0 " + window.innerWidth + " " + window.innerHeight);
+            }});
         </script>
     </body>
     </html>
@@ -437,7 +453,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=1920, height=1080, scrolling=True)
+                            width=1920, height=1080, scrolling=False)
 
 def generate_fallback_visualization() -> str:
     """
