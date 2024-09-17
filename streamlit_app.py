@@ -91,7 +91,8 @@ def get_api_key() -> Optional[str]:
     if not api_key:
         api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
         if api_key:
-            st.sidebar.warning("It's recommended to use environment variables or Streamlit secrets for API keys.")
+            st.sidebar.success("API key received successfully! 🎉")
+            st.sidebar.markdown("*Initializing quantum neural networks...*")
     return api_key
 
 def test_api_key(api_key: str) -> bool:
