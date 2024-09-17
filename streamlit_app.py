@@ -41,7 +41,7 @@ def display_loading_animation():
         }
     </style>
     """
-    return st.components.v1.html(loading_html, height=1000)
+    return st.components.v1.html(loading_html, height=400)
 
 def get_api_key() -> Optional[str]:
     """
