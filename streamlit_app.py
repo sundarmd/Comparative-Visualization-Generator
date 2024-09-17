@@ -198,11 +198,11 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     Critical Requirements for D3.js Visualization:
     1. Create a function named createVisualization(data, svgElement)
     2. Implement a responsive SVG that adjusts its size based on the content
-    3. Utilize the full width and height provided (960x540 pixels)
-    4. Implement zoom and pan functionality for exploring the data
+    3. Utilize the full width and height provided (1000x600 pixels)
+    4. Implement zoom, pan, and brush functionality for exploring the data
     5. Ensure efficient use of space, minimizing empty areas
-    6. Add appropriate margins, title, axes labels, and a legend
-    7. Use different colors or patterns for each data source
+    6. Add appropriate margins, title, axes labels, and an interactive legend
+    7. Use different colors for each data source and implement a color scale
     8. Implement tooltips showing full information on hover
     9. Include smooth transitions for any data updates or interactions
     10. Handle potential overlapping of data points or labels
@@ -215,37 +215,42 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     17. Utilize d3.line(), d3.area(), d3.arc() for creating complex shapes and paths
     18. Implement interactivity: d3.brush(), d3.zoom(), d3.drag() for user interaction
     19. Use d3.interpolate() for smooth color and value transitions
-    20. Implement advanced layouts: d3.hierarchy(), d3.treemap(), d3.pack() for hierarchical data
-    21. Utilize d3.forceSimulation() for force-directed graph layouts
-    22. Implement d3.geoPath() and d3.geoProjection() for geographical visualizations
-    23. Use d3.contours() and d3.density2D() for density and contour visualizations
-    24. Implement d3.voronoi() for proximity-based visualizations
-    25. Utilize d3.chord() and d3.ribbon() for relationship visualizations
-    26. Implement advanced event handling with d3.on() for mouseover, click, etc.
-    27. Use d3.format() for number formatting in tooltips and labels
-    28. Implement d3.timeFormat() for date/time formatting
-    29. Utilize d3.range() and d3.shuffle() for data generation and randomization
-    30. Implement d3.nest() for data restructuring and aggregation
-    31. Use d3.queue() for asynchronous data loading and processing
-    32. Implement accessibility features using ARIA attributes and d3-textwrap
-    33. Optimize performance using d3.quadtree() for spatial indexing
-    34. Implement responsive design using d3.select(window).on("resize", ...)
-    35. Focus on creating a comparative visualization that highlights data differences
-    36. Implement error handling for invalid data formats and gracefully handle missing data
-    37. Create an interactive, filterable legend using d3.dispatch() for coordinated views
-    38. Implement crosshair functionality for precise data reading
-    39. Add a subtle, styled background using d3.select().append("rect") with rounded corners
-    40. Ensure the visualization updates smoothly when data changes or on user interaction
-    41. Use d3.transition().duration() to control animation speed, with longer durations for more complex animations
-    42. Implement staggered animations using d3.transition().delay() to create cascading effects
-    43. Utilize d3.easeElastic, d3.easeBack, or custom easing functions for more dynamic animations
-    44. Implement enter, update, and exit animations for data changes
-    45. Use d3.interpolateString() for smooth transitions between different text values
-    46. Implement path animations using d3.interpolate() for custom interpolators
-    47. Create looping animations using d3.timer() for continuous effects
-    48. Implement chained transitions using .transition().transition() for sequential animations
-    49. Use d3.active() to coordinate multiple animations and prevent overlapping
-    50. Implement FLIP (First, Last, Invert, Play) animations for layout changes
+    20. Implement d3.forceSimulation() for force-directed graph layouts if applicable
+    21. Utilize d3.geoPath() and d3.geoProjection() for geographical visualizations if applicable
+    22. Use d3.contours() and d3.density2D() for density and contour visualizations if applicable
+    23. Implement d3.voronoi() for proximity-based visualizations if applicable
+    24. Utilize d3.chord() and d3.ribbon() for relationship visualizations if applicable
+    25. Implement advanced event handling with d3.on() for mouseover, click, etc.
+    26. Use d3.format() for number formatting in tooltips and labels
+    27. Implement d3.timeFormat() for date/time formatting if applicable
+    28. Utilize d3.range() and d3.shuffle() for data generation and randomization if needed
+    29. Implement d3.nest() for data restructuring and aggregation if needed
+    30. Use d3.queue() for asynchronous data loading and processing
+    31. Implement accessibility features using ARIA attributes
+    32. Optimize performance using d3.quadtree() for spatial indexing if applicable
+    33. Implement responsive design using d3.select(window).on("resize", ...)
+    34. Focus on creating a comparative visualization that highlights data differences
+    35. Implement error handling for invalid data formats and gracefully handle missing data
+    36. Create an interactive, filterable legend using d3.dispatch() for coordinated views
+    37. Implement crosshair functionality for precise data reading
+    38. Add a subtle, styled background using d3.select().append("rect") with rounded corners
+    39. Ensure the visualization updates smoothly when data changes or on user interaction
+    40. Use d3.transition().duration() to control animation speed, with longer durations for more complex animations
+    41. Implement staggered animations using d3.transition().delay() to create cascading effects
+    42. Utilize d3.easeElastic, d3.easeBack, or custom easing functions for more dynamic animations
+    43. Implement enter, update, and exit animations for data changes
+    44. Use d3.interpolateString() for smooth transitions between different text values
+    45. Implement path animations using d3.interpolate() for custom interpolators
+    46. Create looping animations using d3.timer() for continuous effects if applicable
+    47. Implement chained transitions using .transition().transition() for sequential animations
+    48. Use d3.active() to coordinate multiple animations and prevent overlapping
+    49. Implement FLIP (First, Last, Invert, Play) animations for layout changes if applicable
+    50. Add dropdowns or other UI elements for users to change the variables displayed on each axis
+    51. Implement a brush reset button and functionality
+    52. Add a chart title and make it responsive to window resizing
+    53. Implement a sophisticated tooltip that shows all relevant information and follows the mouse
+    54. Create a legend that allows toggling visibility of different data categories
+    55. Implement a size scale for data points based on a specific attribute
 
     Data Schema:
     {schema_str}
@@ -260,7 +265,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = f"""
         # D3.js Code Generation Task
 
-        Generate ONLY D3.js version 7 code for a clear, readable, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
+        Generate ONLY D3.js version 7 code for a sophisticated, interactive, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
 
         Critical Requirements:
         1. Create a function named createVisualization(data, svgElement)
@@ -272,12 +277,18 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Rotate labels if necessary (e.g., 45-degree angle)
            - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
            - Implement label truncation or abbreviation for long names
-        4. Use different colors or patterns for each data source
-        5. Include a legend clearly indicating which color/pattern represents which data source
-        6. Ensure appropriate spacing between bars or data points
+        4. Use different colors for each data source and implement a color scale
+        5. Include an interactive legend clearly indicating which color represents which data source
+        6. Ensure appropriate spacing between data points
         7. Add tooltips showing full information on hover
         8. Implement responsive design to fit various screen sizes
         9. Include smooth transitions for any data updates
+        10. Implement zoom, pan, and brush functionality
+        11. Add dropdowns or other UI elements for users to change the variables displayed on each axis
+        12. Implement a brush reset button and functionality
+        13. Add a chart title and make it responsive to window resizing
+        14. Create a sophisticated tooltip that shows all relevant information and follows the mouse
+        15. Implement a size scale for data points based on a specific attribute
 
         Data Schema:
         {schema_str}
@@ -297,9 +308,9 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",  # Updated model name
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
+                {"role": "system", "content": "You are a D3.js expert specializing in creating sophisticated, interactive, and comparative visualizations. Your code must explicitly address all requirements and ensure a comparative aspect between two data sources."},
                 {"role": "user", "content": prompt}
             ]
         )
