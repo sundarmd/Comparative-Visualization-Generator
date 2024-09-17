@@ -14,6 +14,8 @@ You can play with the [Live Demo](https://comparative-visualization-generator.st
 
 3. Iteratively interact to re-generate visualizations based on the data through natural language queries
 
+![image](https://github.com/user-attachments/assets/9e066deb-4134-474d-b411-43b45bd7bf86)
+
 ![image](https://github.com/user-attachments/assets/680bbde2-f91e-43d5-9b45-bdf4f8d94be4)
 
 ![image](https://github.com/user-attachments/assets/4ec8041b-8471-4933-9f56-71c1e3bb2aee)
