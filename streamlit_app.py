@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import openai
+from openai import OpenAI
 import os
 import json
 import logging
@@ -74,8 +74,8 @@ def test_api_key(api_key: str) -> bool:
         bool: True if the API key is valid, False otherwise.
     """
     try:
-        openai.api_key = api_key
-        openai.Model.list()
+        client = OpenAI(api_key=api_key)
+        client.models.list()
         return True
     except Exception as e:
         logger.error(f"API key validation failed: {str(e)}")
@@ -189,7 +189,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
-    openai.api_key = api_key
+    client = OpenAI(api_key=api_key)
     base_prompt = f"""
 # D3.js Code Generation Task
 
@@ -290,7 +290,7 @@ Current Code:```javascript
 IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code. """ else: prompt = base_prompt
 
 try:
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a D3.js expert specializing in creating clear, readable, and comparative visualizations. Your code must explicitly address overlapping labels and ensure a comparative aspect between two data sources."},
@@ -322,7 +322,7 @@ Args:
 Returns:
     str: Refined D3.js code, or the last attempt if refinement fails.
 """
-openai.api_key = api_key
+client = OpenAI(api_key=api_key)
 for attempt in range(max_attempts):
     if validate_d3_code(initial_code):
         return initial_code
@@ -337,7 +337,7 @@ Please provide a corrected version that:
 Defines a createVisualization(data, svgElement) function
 Uses only D3.js version 7 syntax
 Creates a valid visualization
-Return ONLY the corrected D3 code without any explanations or comments. """ try: response = openai.ChatCompletion.create( model="gpt-4", messages=[ {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."}, {"role": "user", "content": refinement_prompt} ], temperature=0.3, max_tokens=1500 )
+Return ONLY the corrected D3 code without any explanations or comments. """ try: response = client.chat.completions.create( model="gpt-4", messages=[ {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."}, {"role": "user", "content": refinement_prompt} ], temperature=0.3, max_tokens=1500 )
 
 
         initial_code = clean_d3_response(response.choices[0].message.content)
@@ -372,8 +372,44 @@ if not any(line.strip().startswith('function createVisualization') for line in c
     clean_lines.append('}')
 
 return '\n'.join(clean_lines)
-def display_visualization(d3_code: str): """ Display the D3.js visualization using an iframe and add a download button. """ html_content = f""" <!DOCTYPE html> <html> <head> <meta charset="utf-8"> <title>D3 Visualization</title> <script src="https://d3js.org/d3.v7.min.js"></script> <style> body {{ margin: 0; padding: 0; overflow: hidden; }} #visualization {{ width: 100%; height: 100vh; overflow: hidden; }} svg {{ width: 100%; height: 100%; }} .tooltip {{ position: absolute; text-align: left; width: auto; padding: 10px; font: 12px sans-serif; background: rgba(0,0,0,0.7); color: #fff; border: 0px; border-radius: 8px; pointer-events: none; }} </style> </head> <body> <div id="visualization"></div> <button onclick="downloadSVG()" style="position: absolute; top: 10px; right: 10px; padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Download SVG</button> <script> {d3_code} // Create the SVG element const svgElement = d3.select("#visualization") .append("svg") .attr("viewBox", "0 0 960 540") .attr("preserveAspectRatio", "xMidYMid meet") .node();
 
+def get_html_template():
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>D3 Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; }
+        #visualization { width: 100%; height: 100vh; overflow: hidden; }
+        svg { width: 100%; height: 100%; }
+        .tooltip {
+            position: absolute;
+            text-align: left;
+            width: auto;
+            padding: 10px;
+            font: 12px sans-serif;
+            background: rgba(0,0,0,0.7);
+            color: #fff;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="visualization"></div>
+    <button onclick="downloadSVG()" style="position: absolute; top: 10px; right: 10px; padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">Download SVG</button>
+    <script>
+        {d3_code}
+        // Create the SVG element
+        const svgElement = d3.select("#visualization")
+            .append("svg")
+            .attr("viewBox", "0 0 960 540")
+            .attr("preserveAspectRatio", "xMidYMid meet")
+            .node();
 
         // Get the data from the parent window
         const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
@@ -404,16 +440,21 @@ def display_visualization(d3_code: str): """ Display the D3.js visualization usi
 </html>
 """
 
-# Encode the data to pass it to the iframe
-encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
+def display_visualization(d3_code: str):
+    """ Display the D3.js visualization using an iframe and add a download button. """
+    html_content = get_html_template().format(d3_code=d3_code)
 
-# Display the iframe with the encoded data in the URL hash
-st.components.v1.iframe(
-    f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-    width=960, 
-    height=600, 
-    scrolling=False
-)
+    # Encode the data to pass it to the iframe
+    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
+
+    # Display the iframe with the encoded data in the URL hash
+    st.components.v1.iframe(
+        f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
+        width=960, 
+        height=600, 
+        scrolling=False
+    )
+
 def generate_fallback_visualization() -> str: """ Generate a fallback visualization if the LLM fails.
 
 
