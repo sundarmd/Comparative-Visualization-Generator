@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from openai import OpenAI
+import google.generativeai as genai
 import os
 import json
 import logging
@@ -81,15 +81,15 @@ def get_api_key() -> Optional[str]:
     """
     Securely retrieve the API key.
     
-    This function attempts to get the OpenAI API key from Streamlit secrets or environment variables.
+    This function attempts to get the Google API key from Streamlit secrets or environment variables.
     If not found, it prompts the user to enter the key via a sidebar input.
     
     Returns:
         Optional[str]: The API key if found or entered, None otherwise.
     """
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if not api_key:
-        api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+        api_key = st.sidebar.text_input("Enter your Google API Key", type="password")
         if api_key:
             st.sidebar.success("API key received successfully! 🎉")
             st.sidebar.markdown("*Initializing quantum neural networks...*")
@@ -99,18 +99,19 @@ def test_api_key(api_key: str) -> bool:
     """
     Test if the provided API key is valid.
     
-    This function attempts to list OpenAI models using the provided API key.
+    This function attempts to initialize the Gemini model using the provided API key.
     If successful, the key is considered valid.
     
     Args:
-        api_key (str): The OpenAI API key to test.
+        api_key (str): The Google API key to test.
     
     Returns:
         bool: True if the API key is valid, False otherwise.
     """
-    client = OpenAI(api_key=api_key)
     try:
-        client.models.list()
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-pro')
+        model.generate_content("Test")
         return True
     except Exception as e:
         logger.error(f"API key validation failed: {str(e)}")
@@ -202,14 +203,14 @@ def validate_d3_code(code: str) -> bool:
 
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
-    Generate D3.js code using OpenAI API with emphasis on comparison and readability.
+    Generate D3.js code using Google's Gemini API with emphasis on comparison and readability.
     
-    This function constructs a prompt for the OpenAI API, including data schema and sample,
+    This function constructs a prompt for the Gemini API, including data schema and sample,
     and generates D3.js code based on the input DataFrame and user requirements.
     
     Args:
         df (pd.DataFrame): The preprocessed DataFrame.
-        api_key (str): OpenAI API key.
+        api_key (str): Google API key.
         user_input (str, optional): Additional user requirements for visualization.
     
     Returns:
@@ -224,7 +225,9 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
-    client = OpenAI(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    
     base_prompt = f"""
     # D3.js Code Generation Task
 
@@ -342,15 +345,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         prompt = base_prompt
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a D3.js expert specializing in creating sophisticated, interactive, and comparative visualizations. Your code must explicitly address all requirements and ensure a comparative aspect between two data sources."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        
-        d3_code = response.choices[0].message.content
+        response = model.generate_content(prompt)
+        d3_code = response.text
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
         
@@ -364,17 +360,18 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     Refine the D3 code through iterative LLM calls if necessary.
     
     This function attempts to improve the generated D3 code if it fails validation.
-    It makes multiple attempts to refine the code using the OpenAI API.
+    It makes multiple attempts to refine the code using the Gemini API.
     
     Args:
         initial_code (str): The initial D3.js code to refine.
-        api_key (str): OpenAI API key.
+        api_key (str): Google API key.
         max_attempts (int, optional): Maximum number of refinement attempts. Defaults to 3.
     
     Returns:
         str: Refined D3.js code, or the last attempt if refinement fails.
     """
-    client = OpenAI(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel('gemini-pro')
     
     for attempt in range(max_attempts):
         if validate_d3_code(initial_code):
@@ -393,15 +390,8 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         Return ONLY the corrected D3 code without any explanations or comments.
         """
         
-        response = client.chat.completions.create(
-            model="gpt-4o",  # Updated model name
-            messages=[
-                {"role": "system", "content": "You are a D3.js expert. Provide only valid D3 code."},
-                {"role": "user", "content": refinement_prompt}
-            ]
-        )
-        
-        initial_code = clean_d3_response(response.choices[0].message.content)
+        response = model.generate_content(refinement_prompt)
+        initial_code = clean_d3_response(response.text)
     
     # If we've exhausted our attempts, return the last attempt
     logger.warning("Failed to generate valid D3 code after maximum attempts")
@@ -578,7 +568,7 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
     
     Args:
         df (pd.DataFrame): The preprocessed DataFrame.
-        api_key (str): OpenAI API key.
+        api_key (str): Google API key.
         user_input (str, optional): Additional user requirements for visualization.
     
     Returns:
