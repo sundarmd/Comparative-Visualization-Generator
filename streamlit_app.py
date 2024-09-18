@@ -431,6 +431,7 @@ def display_visualization(d3_code: str):
     <html>
     <head>
         <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
         <style>
             #visualization {{
                 width: 100%;
@@ -441,19 +442,28 @@ def display_visualization(d3_code: str):
                 width: 100%;
                 height: 100%;
             }}
+            .tooltip {{
+                position: absolute;
+                background-color: white;
+                border: 1px solid #ddd;
+                padding: 10px;
+                border-radius: 5px;
+                pointer-events: none;
+            }}
         </style>
     </head>
     <body>
         <div id="visualization"></div>
-        <button onclick="downloadSVG()" style="position: absolute; top: 10px; right: 10px;">Download SVG</button>
         <script>
             {d3_code}
+            
             // Create the SVG element
             const svgElement = d3.select("#visualization")
                 .append("svg")
+                .attr("width", 960)
+                .attr("height", 540)
                 .attr("viewBox", "0 0 960 540")
-                .attr("preserveAspectRatio", "xMidYMid meet")
-                .node();
+                .attr("preserveAspectRatio", "xMidYMid meet");
             
             // Get the data from the parent window
             const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
@@ -461,22 +471,13 @@ def display_visualization(d3_code: str):
             // Call the createVisualization function
             createVisualization(vizData, svgElement);
 
-            // Function to download the SVG
-            function downloadSVG() {{
-                const svgData = new XMLSerializer().serializeToString(svgElement);
-                const svgBlob = new Blob([svgData], {{type: "image/svg+xml;charset=utf-8"}});
-                const svgUrl = URL.createObjectURL(svgBlob);
-                const downloadLink = document.createElement("a");
-                downloadLink.href = svgUrl;
-                downloadLink.download = "visualization.svg";
-                document.body.appendChild(downloadLink);
-                downloadLink.click();
-                document.body.removeChild(downloadLink);
-            }}
-
             // Make the visualization responsive
             window.addEventListener('resize', function() {{
-                d3.select(svgElement).attr("viewBox", "0 0 " + window.innerWidth + " " + window.innerHeight);
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                svgElement.attr("width", width).attr("height", height);
+                svgElement.attr("viewBox", `0 0 ${{width}} ${{height}}`);
+                createVisualization(vizData, svgElement);
             }});
         </script>
     </body>
@@ -488,7 +489,7 @@ def display_visualization(d3_code: str):
     
     # Display the iframe with the encoded data in the URL hash
     st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-                            width=960, height=540, scrolling=False)
+                            width=960, height=540, scrolling=True)
 
 def generate_fallback_visualization() -> str:
     """
