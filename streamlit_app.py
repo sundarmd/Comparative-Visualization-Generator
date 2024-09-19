@@ -38,7 +38,7 @@ def display_loading_animation():
             <div class="spinner-ring"></div>
             <div class="spinner-ring"></div>
         </div>
-        <div class="loading-text">LLM gods are doing magic now...</div>
+        <div class="loading-text">Loading...</div>
     </div>
     <style>
         .loading-spinner {
