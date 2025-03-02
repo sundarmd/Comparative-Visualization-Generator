@@ -503,8 +503,14 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Provide fallbacks for missing values
            - Visual feedback for errors
         
-        The code must start with 'function createVisualization(data, svgElement) {{'
-        Return ONLY the complete JavaScript code with no explanations.
+        ## OUTPUT RULES (CRITICALLY IMPORTANT):
+        - The code MUST start with 'function createVisualization(data, svgElement) {{'
+        - Return ONLY the complete JavaScript code
+        - DO NOT include ANY explanatory text, markdown, or code block formatting
+        - DO NOT include any comments or descriptions outside the code itself
+        - DO NOT include text like "Here is the code" or "The code creates..."
+        - NEVER include any commentary after the closing brace of the function
+        - If you need to explain something, do it as comments INSIDE the code
         """
         
         logger.info(f"Calling OpenAI API with model: {model}")
@@ -521,7 +527,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -535,7 +541,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -547,9 +553,12 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                 
                 logger.info(f"Generated D3 code length: {len(d3_code)} characters")
                 
-                # Validate the generated code has the required function
-                if not d3_code.startswith("function createVisualization"):
-                    logger.warning("Generated code doesn't start with createVisualization function, fixing...")
+                # Clean the response to ensure it's only code
+                d3_code = clean_d3_response(d3_code)
+                
+                # Extra validation to ensure there's no trailing text
+                if "```" in d3_code or "Here is" in d3_code or "The code" in d3_code:
+                    logger.warning("Found explanatory text in the code, cleaning it...")
                     d3_code = clean_d3_response(d3_code)
                 
                 return d3_code
@@ -683,28 +692,69 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
 
 def clean_d3_response(response: str) -> str:
     """
-    Clean the LLM response to ensure it only contains valid D3 code.
+    Clean the D3.js code response from OpenAI to ensure it's properly formatted.
     
-    This function removes markdown formatting, non-JavaScript lines,
-    and ensures the code starts with the createVisualization function
-    and has proper function closure.
+    This function extracts just the JavaScript code from the LLM response,
+    removing any explanatory text, code blocks, or other non-code content.
     
     Args:
-        response (str): The raw response from the LLM.
+        response (str): The raw response from OpenAI containing D3.js code.
     
     Returns:
-        str: Cleaned D3.js code with valid function structure.
+        str: Cleaned and formatted D3.js code.
     """
-    # Remove any potential markdown code blocks
-    response = response.replace("```javascript", "").replace("```js", "").replace("```", "")
+    # First, try to extract code between triple backticks if present
+    code_pattern = re.compile(r'```(?:javascript|js)?\s*([\s\S]*?)\s*```')
+    code_matches = code_pattern.findall(response)
     
-    # Remove any lines that don't look like JavaScript
-    clean_lines = [line for line in response.split('\n') if line.strip() and not line.strip().startswith('#')]
+    if code_matches:
+        # Use the first code block found
+        response = code_matches[0]
+    
+    # Remove markdown and comments that might be outside the code
+    lines = response.split('\n')
+    clean_lines = []
+    
+    # Flag to indicate we're inside the JavaScript function
+    inside_function = False
+    # Counter for braces to detect the function's end
+    brace_count = 0
+    function_ended = False
+    
+    for line in lines:
+        # Skip Markdown headings, list items and horizontal rules
+        if re.match(r'^#+\s|^[*-]\s|^-{3,}$|^#{3,}$', line.strip()):
+            continue
+            
+        # Check if we're at the createVisualization function start
+        if re.match(r'function\s+createVisualization\s*\(', line):
+            inside_function = True
+            clean_lines.append(line)
+            brace_count += line.count('{') - line.count('}')
+            continue
+            
+        # If we've identified the function's end previously, don't add more lines
+        if function_ended:
+            continue
+            
+        # If we're inside the function, count braces and add the line
+        if inside_function:
+            clean_lines.append(line)
+            brace_count += line.count('{') - line.count('}')
+            
+            # If braces are balanced and we've started counting, we've reached the end
+            if brace_count == 0 and '}' in line:
+                function_ended = True
+                continue
+    
+    # If we couldn't identify the function structure, fallback to original cleaning
+    if not clean_lines:
+        clean_lines = [line for line in lines if line.strip() and not line.strip().startswith('#')]
+    
     clean_code = '\n'.join(clean_lines)
     
-    # Check if code already has createVisualization function
+    # Ensure the code starts with createVisualization function
     if not clean_code.strip().startswith('function createVisualization'):
-        # If not, wrap the entire code in the function
         clean_code = f'function createVisualization(data, svgElement) {{\n{clean_code}\n}}'
     
     # Ensure proper function closure
@@ -865,21 +915,23 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         
         # Render in the appropriate place
         if placeholder is not None:
-            # When using a placeholder, we need to use the correct method
+            # When using a placeholder, create a container inside it
             with placeholder.container():
-                # Use components.html inside the placeholder's container
+                # Use components.html inside the container
                 components.html(
                     html_content,
                     height=600,
                     scrolling=True
                 )
+                logger.info("Visualization displayed in provided placeholder")
         else:
-            # Use components.html to display the visualization with proper height
+            # Use components.html to display the visualization in the current position
             components.html(
                 html_content,
                 height=600,
                 scrolling=True
             )
+            logger.info("Visualization displayed in current position")
         
         # Log success
         logger.info("Visualization displayed successfully")
@@ -890,7 +942,8 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         logger.error(traceback.format_exc())
         
         if placeholder is not None:
-            placeholder.error(error_msg)
+            with placeholder.container():
+                st.error(error_msg)
         else:
             st.error(error_msg)
 
@@ -934,6 +987,16 @@ def main():
     if 'workflow_history' not in st.session_state:
         st.session_state.workflow_history = []
     
+    if 'update_viz' not in st.session_state:
+        st.session_state.update_viz = False
+    
+    # Create visualization containers - defining these outside the file check
+    # ensures they remain stable even as the UI updates
+    viz_header = st.empty()  # Header container
+    viz_status = st.empty()  # For showing viz status
+    viz_caption = st.empty()  # For showing viz description
+    viz_container = st.empty()  # The main visualization container
+    
     # Display model information in a less prominent place if needed
     model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
     
@@ -944,213 +1007,216 @@ def main():
     with col2:
         file2 = st.file_uploader("Upload second CSV file", type="csv")
 
-    if 'update_viz' not in st.session_state:
-        st.session_state.update_viz = False
+    # Show informational message when no files are uploaded
+    if not file1 or not file2:
+        st.info("📊 Please upload both CSV files to generate a visualization.")
+        st.markdown("""
+        ### How to use this app:
+        1. Enter your OpenAI API key in the sidebar
+        2. Upload two CSV files for comparison
+        3. The app will generate an initial visualization
+        4. Describe changes you want in the text field
+        5. Click 'Update Visualization' to apply your requests
+        """)
+        
+        # Clear any existing visualizations if files are removed
+        if ('current_viz' in st.session_state and st.session_state.current_viz is not None):
+            # Clear visualization containers
+            viz_header.empty()
+            viz_status.empty()
+            viz_caption.empty()
+            with viz_container.container():
+                st.empty()
+            
+            # Reset session state
+            st.session_state.current_viz = None
+            st.session_state.preprocessed_df = None
+            st.session_state.json_data = None
+        
+        return  # Exit early if files not uploaded
 
-    # Create visualization containers - defining these outside the file check
-    # ensures they remain stable even as the UI updates
-    viz_header = st.empty()  # Header container
-    viz_status = st.empty()  # For showing viz status
-    viz_caption = st.empty()  # For showing viz description
-    viz_container = st.empty()  # The main visualization container
-
-    if file1 and file2:
-        try:
-            if 'preprocessed_df' not in st.session_state or st.session_state.preprocessed_df is None:
-                with st.spinner("Preprocessing data..."):
-                    merged_df = preprocess_data(file1, file2)
-                st.session_state.preprocessed_df = merged_df
-                # Convert DataFrame to JSON and store in session state
-                st.session_state.json_data = merged_df.to_dict(orient='records')
-                logger.info(f"Initialized json_data with {len(st.session_state.json_data)} records")
+    try:
+        if 'preprocessed_df' not in st.session_state or st.session_state.preprocessed_df is None:
+            with st.spinner("Preprocessing data..."):
+                merged_df = preprocess_data(file1, file2)
+            st.session_state.preprocessed_df = merged_df
+            # Convert DataFrame to JSON and store in session state
+            st.session_state.json_data = merged_df.to_dict(orient='records')
+            logger.info(f"Initialized json_data with {len(st.session_state.json_data)} records")
+        
+        with st.expander("Preview of preprocessed data"):
+            st.dataframe(st.session_state.preprocessed_df.head())
+        
+        # Show the visualization header
+        viz_header.subheader("Visualization")
+        
+        # Generate initial visualization if needed
+        if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
+            viz_status.info("Generating initial visualization...")
             
-            with st.expander("Preview of preprocessed data"):
-                st.dataframe(st.session_state.preprocessed_df.head())
+            with st.spinner("Generating initial D3 visualization..."):
+                d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
+                st.session_state.current_viz = d3_code
+                st.session_state.workflow_history.append({
+                    "version": len(st.session_state.workflow_history) + 1,
+                    "request": "Initial comparative visualization",
+                    "code": d3_code
+                })
             
-            # Show the visualization header
-            viz_header.subheader("Visualization")
+            viz_status.success("Initial visualization generated!")
+            viz_caption.caption("Initial visualization based on data structure")
             
-            # Generate initial visualization if needed
-            if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
-                viz_status.info("Generating initial visualization...")
-                with st.spinner("Generating initial D3 visualization..."):
-                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
-                    st.session_state.current_viz = d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": "Initial comparative visualization",
-                        "code": d3_code
-                    })
-                viz_status.empty()
-                viz_caption.caption("Initial visualization based on data structure")
+            # Clear the container before rendering
+            with viz_container.container():
+                st.empty()
             
-            # Clear the container before rendering to avoid stacking issues
+            # Display the current visualization in the container
+            display_visualization(st.session_state.current_viz, viz_container)
+        else:
+            # Display existing visualization
+            viz_caption.caption("Current visualization")
+            
+            # Clear the container before rendering
             with viz_container.container():
                 st.empty()
                 
             # Display the current visualization in the container
             display_visualization(st.session_state.current_viz, viz_container)
 
-            # Modification section
-            st.markdown("---")
-            st.subheader("Modify Visualization")
-            user_input = st.text_area("Enter your visualization request:", 
-                                      height=100,
-                                      help="Describe what changes you want to make to the visualization")
-            
-            update_col1, update_col2 = st.columns([3, 1])
-            with update_col1:
-                update_button = st.button("🔄 Update Visualization", use_container_width=True, type="primary")
-            
-            if update_button:
-                if not user_input.strip():
-                    st.warning("Please enter a request to update the visualization.")
-                else:
-                    # Show processing message in the status area
-                    viz_status.info(f"Working on: '{user_input}'")
-                    
-                    # Make sure json_data is initialized and up to date
-                    if 'json_data' not in st.session_state or st.session_state.json_data is None:
-                        st.session_state.json_data = st.session_state.preprocessed_df.to_dict(orient='records')
-                        logger.info(f"Updated json_data with {len(st.session_state.json_data)} records")
-                    
-                    # Step 1: Generate the new visualization code
-                    try:
-                        with st.spinner("Generating updated visualization..."):
-                            # Force creation of a new visualization code
-                            new_d3_code = generate_d3_code(
-                                st.session_state.preprocessed_df, 
-                                api_key, 
-                                user_input
+        # Modification section
+        st.markdown("---")
+        st.subheader("Modify Visualization")
+        user_input = st.text_area("Enter your visualization request:", 
+                                  height=100,
+                                  help="Describe what changes you want to make to the visualization")
+        
+        update_col1, update_col2 = st.columns([3, 1])
+        with update_col1:
+            update_button = st.button("🔄 Update Visualization", use_container_width=True, type="primary")
+        
+        if update_button:
+            if not user_input.strip():
+                st.warning("Please enter a request to update the visualization.")
+            else:
+                # Show processing message in the status area
+                viz_status.info(f"Working on: '{user_input}'")
+                
+                # Make sure json_data is initialized and up to date
+                if 'json_data' not in st.session_state or st.session_state.json_data is None:
+                    st.session_state.json_data = st.session_state.preprocessed_df.to_dict(orient='records')
+                    logger.info(f"Updated json_data with {len(st.session_state.json_data)} records")
+                
+                # Step 1: Generate the new visualization code
+                try:
+                    with st.spinner("Generating updated visualization..."):
+                        # Force creation of a new visualization code
+                        new_d3_code = generate_d3_code(
+                            st.session_state.preprocessed_df, 
+                            api_key, 
+                            user_input
+                        )
+                        
+                        # Compare old and new code
+                        old_code = st.session_state.current_viz if 'current_viz' in st.session_state else ""
+                        if new_d3_code.strip() == old_code.strip():
+                            logger.warning("Generated code is identical to current code")
+                            viz_status.warning("The model generated identical code. Trying again with stronger instructions...")
+                            
+                            # Try again with stronger prompt
+                            new_d3_code = generate_d3_code_with_forced_changes(
+                                st.session_state.preprocessed_df,
+                                api_key,
+                                user_input,
+                                old_code
                             )
+                        
+                        # Step 2: Update the session state
+                        st.session_state.current_viz = new_d3_code
+                        
+                        # Add to history
+                        st.session_state.workflow_history.append({
+                            "version": len(st.session_state.workflow_history) + 1,
+                            "request": user_input,
+                            "code": new_d3_code
+                        })
+                        
+                        # Update the status and caption
+                        viz_status.success("Visualization updated successfully!")
+                        viz_caption.caption(f"Based on your request: '{user_input}'")
+                        
+                        # Clear the container before rendering
+                        with viz_container.container():
+                            st.empty()
                             
-                            # Compare old and new code
-                            old_code = st.session_state.current_viz if 'current_viz' in st.session_state else ""
-                            if new_d3_code == old_code:
-                                logger.warning("Generated code is identical to current code")
-                                viz_status.warning("The model generated identical code. Trying again with stronger instructions...")
-                                
-                                # Try again with stronger prompt
-                                new_d3_code = generate_d3_code_with_forced_changes(
-                                    st.session_state.preprocessed_df,
-                                    api_key,
-                                    user_input,
-                                    old_code
-                                )
-                            
-                            # Step 2: Update the session state
-                            st.session_state.current_viz = new_d3_code
-                            
-                            # Add to history
+                        # Step 3: Display the updated visualization in the same container
+                        display_visualization(new_d3_code, viz_container)
+                        
+                except Exception as e:
+                    viz_status.error("Error processing request")
+                    error_message = str(e)
+                    
+                    # Provide more helpful error messages for common issues
+                    if "openai" in error_message.lower():
+                        if "api key" in error_message.lower():
+                            error_message = "Invalid or expired OpenAI API key. Please check your API key and try again."
+                        elif "rate limit" in error_message.lower():
+                            error_message = "OpenAI API rate limit exceeded. Please wait a minute and try again."
+                        else:
+                            error_message = f"OpenAI API error: {error_message}. Please try again later."
+                    
+                    st.error(f"Error updating visualization: {error_message}")
+                    logger.error(f"Error in visualization update flow: {str(e)}")
+                    logger.error(traceback.format_exc())
+
+        # Code editor section
+        with st.expander("View/Edit Visualization Code"):
+            code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
+            col1, col2, col3 = st.columns([1,1,2])
+            with col1:
+                edit_enabled = st.toggle("Edit", key="edit_toggle")
+            with col2:
+                if st.button("Execute Code"):
+                    if edit_enabled:
+                        if validate_d3_code(code_editor):
+                            st.session_state.current_viz = code_editor
                             st.session_state.workflow_history.append({
                                 "version": len(st.session_state.workflow_history) + 1,
-                                "request": user_input,
-                                "code": new_d3_code
+                                "request": "Manual code edit",
+                                "code": code_editor
                             })
-                            
-                            # Update the status and caption
-                            viz_status.success("Visualization updated successfully!")
-                            viz_caption.caption(f"Based on your request: '{user_input}'")
-                            
-                            # Clear the container before rendering to avoid stacking issues
-                            with viz_container.container():
-                                st.empty()
-                                
-                            # Step 3: Display the updated visualization in the same container
-                            display_visualization(new_d3_code, viz_container)
-                            
-                    except Exception as e:
-                        viz_status.error("Error processing request")
-                        error_message = str(e)
-                        
-                        # Provide more helpful error messages for common issues
-                        if "openai" in error_message.lower():
-                            if "api key" in error_message.lower():
-                                error_message = "Invalid or expired OpenAI API key. Please check your API key and try again."
-                            elif "rate limit" in error_message.lower():
-                                error_message = "OpenAI API rate limit exceeded. Please wait a minute and try again."
-                            else:
-                                error_message = f"OpenAI API error: {error_message}. Please try again later."
-                        
-                        st.error(f"Error updating visualization: {error_message}")
-                        logger.error(f"Error in visualization update flow: {str(e)}")
-                        logger.error(traceback.format_exc())
-
-            # Code editor section
-            with st.expander("View/Edit Visualization Code"):
-                code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
-                col1, col2, col3 = st.columns([1,1,2])
-                with col1:
-                    edit_enabled = st.toggle("Edit", key="edit_toggle")
-                with col2:
-                    if st.button("Execute Code"):
-                        if edit_enabled:
-                            if validate_d3_code(code_editor):
-                                st.session_state.current_viz = code_editor
-                                st.session_state.workflow_history.append({
-                                    "version": len(st.session_state.workflow_history) + 1,
-                                    "request": "Manual code edit",
-                                    "code": code_editor
-                                })
-                                viz_caption.caption("Manual code edit")
-                                
-                                # Clear the container before rendering
-                                with viz_container.container():
-                                    st.empty()
-                                    
-                                display_visualization(code_editor, viz_container)
-                                viz_status.success("Manual code applied successfully!")
-                            else:
-                                viz_status.error("Invalid code. Please check and try again.")
-                        else:
-                            viz_status.error("Please enable edit mode to modify code.")
-            
-            # Visualization history
-            with st.expander("Visualization History"):
-                if st.session_state.workflow_history:
-                    for idx, item in enumerate(reversed(st.session_state.workflow_history)):
-                        st.markdown(f"**Version {item['version']}**: {item['request']}")
-                        if st.button(f"Restore Version {item['version']}", key=f"restore_{idx}"):
-                            st.session_state.current_viz = item['code']
-                            viz_caption.caption(f"Restored from version {item['version']}: {item['request']}")
+                            viz_caption.caption("Manual code edit")
                             
                             # Clear the container before rendering
                             with viz_container.container():
                                 st.empty()
                                 
-                            display_visualization(item['code'], viz_container)
-                            viz_status.success(f"Restored visualization from version {item['version']}")
-                else:
-                    st.info("No visualization history available yet.")
-                
-        except Exception as e:
-            st.error(f"Error: {str(e)}")
-            logger.error(f"Application error: {str(e)}")
-            logger.error(traceback.format_exc())
-    else:
-        # Show instructions when no files are uploaded
-        viz_header.empty()  # Clear the visualization header
-        viz_status.empty()  # Clear any status messages
-        viz_caption.empty()  # Clear any captions
-        viz_container.empty()  # Clear the visualization container
+                            display_visualization(code_editor, viz_container)
+                            viz_status.success("Manual code applied successfully!")
+                        else:
+                            viz_status.error("Invalid code. Please check and try again.")
+                    else:
+                        viz_status.error("Please enable edit mode to modify code.")
         
-        st.info("📊 Please upload both CSV files to generate a visualization")
-        st.markdown("""
-        ### How to use this app:
-        1. Enter your OpenAI API key above
-        2. Upload two CSV files with similar schema
-        3. The app will generate an initial visualization
-        4. Type your modification requests in the text box
-        5. Click "Update Visualization" to apply changes
-        """)
-        
-        # Clear any existing visualizations if files are removed
-        if 'current_viz' in st.session_state:
-            st.session_state.current_viz = None
-        if 'preprocessed_df' in st.session_state:
-            st.session_state.preprocessed_df = None
-        if 'json_data' in st.session_state:
-            st.session_state.json_data = None
+        # Visualization history
+        with st.expander("Visualization History"):
+            if st.session_state.workflow_history:
+                for idx, item in enumerate(reversed(st.session_state.workflow_history)):
+                    st.markdown(f"**Version {item['version']}**: {item['request']}")
+                    if st.button(f"Restore Version {item['version']}", key=f"restore_{idx}"):
+                        st.session_state.current_viz = item['code']
+                        viz_caption.caption(f"Restored from version {item['version']}: {item['request']}")
+                        
+                        # Clear the container before rendering
+                        with viz_container.container():
+                            st.empty()
+                            
+                        display_visualization(item['code'], viz_container)
+            else:
+                st.info("No visualization history yet.")
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logger.error(f"Error in main app flow: {str(e)}")
+        logger.error(traceback.format_exc())
 
 def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     """
@@ -1224,8 +1290,13 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     
     5. Add detailed comments explaining your visualization logic
     
-    The code must start with 'function createVisualization(data, svgElement) {{'
-    Return ONLY the complete JavaScript code.
+    ## OUTPUT RULES (CRITICALLY IMPORTANT):
+    - The code MUST start with 'function createVisualization(data, svgElement) {{'
+    - Return ONLY the complete JavaScript code
+    - DO NOT include ANY explanatory text, markdown, or code block formatting
+    - DO NOT write any response except the actual code
+    - DO NOT include text like "Here is the code" or "The code creates..."
+    - NEVER include any commentary after the closing brace of the function
     """
     
     logger.info("Using forced change prompt due to identical code generation")
@@ -1243,7 +1314,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -1257,7 +1328,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -1269,6 +1340,11 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                 
                 d3_code = clean_d3_response(d3_code)
                 logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
+                
+                # Extra validation to ensure there's no trailing text
+                if "```" in d3_code or "Here is" in d3_code or "The code" in d3_code:
+                    logger.warning("Found explanatory text in the code, cleaning it...")
+                    d3_code = clean_d3_response(d3_code)
                 
                 # Verify the new code is actually different
                 if d3_code.strip() == current_code.strip():
