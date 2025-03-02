@@ -9,6 +9,10 @@ from typing import Optional, Dict, List
 import re
 import urllib.parse
 from streamlit import components
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -81,17 +85,27 @@ def get_api_key() -> Optional[str]:
     """
     Securely retrieve the API key.
     
-    This function attempts to get the OpenAI API key from Streamlit secrets or environment variables.
-    If not found, it prompts the user to enter the key via a sidebar input.
+    This function attempts to get the OpenAI API key from:
+    1. Environment variables (loaded from .env file)
+    2. Streamlit secrets
+    3. User input via sidebar
     
     Returns:
         Optional[str]: The API key if found or entered, None otherwise.
     """
-    api_key = st.secrets.get("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    # First try to get from environment variables (from .env file)
+    api_key = os.getenv("OPENAI_API_KEY")
+    
+    # If not found in environment, try Streamlit secrets
+    if not api_key:
+        api_key = st.secrets.get("OPENAI_API_KEY")
+    
+    # If still not found, prompt the user
     if not api_key:
         api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
         if api_key:
             st.sidebar.success("API key received successfully! 🎉")
+    
     return api_key
 
 def test_api_key(api_key: str) -> bool:
@@ -109,8 +123,10 @@ def test_api_key(api_key: str) -> bool:
     """
     try:
         openai.api_key = api_key
+        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+        
         openai.ChatCompletion.create(
-            model="gpt-4",
+            model=model,
             messages=[{"role": "user", "content": "Test"}],
             max_tokens=5
         )
@@ -228,6 +244,11 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
     openai.api_key = api_key
+    
+    # Get model and parameters from environment variables or use defaults
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
+    temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
     base_prompt = f"""
     # D3.js Code Generation Task
@@ -347,10 +368,10 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini-2024-07-18",
+            model=model,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=4000
+            temperature=temperature,
+            max_tokens=max_tokens
         )
         d3_code = response.choices[0].message.content
         if not d3_code.strip():
@@ -378,6 +399,11 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     """
     openai.api_key = api_key
     
+    # Get model and parameters from environment variables or use defaults
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
+    temperature = float(os.getenv("TEMPERATURE", "0.7"))
+    
     for attempt in range(max_attempts):
         if validate_d3_code(initial_code):
             return initial_code
@@ -396,10 +422,10 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         """
         
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini-2024-07-18",
+            model=model,
             messages=[{"role": "user", "content": refinement_prompt}],
-            temperature=0.7,
-            max_tokens=4000
+            temperature=temperature,
+            max_tokens=max_tokens
         )
         initial_code = clean_d3_response(response.choices[0].message.content)
     
