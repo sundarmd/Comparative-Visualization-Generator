@@ -1207,26 +1207,30 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         </html>
         """
         
-        # Render in the appropriate place with proper height and key
+        # Render in the appropriate place with proper height
         if placeholder is not None:
             # When using a placeholder, create a container inside it
-            with placeholder.container():
-                # Use components.html inside the container
-                components.html(
+            with placeholder:
+                # Create a container with a unique key
+                viz_container = st.empty()
+                # Use components.html inside the container without the key parameter
+                viz_container.components.html(
                     html_content,
                     height=VISUALIZATION_HEIGHT + 50,  # Add some padding
-                    scrolling=True,
-                    key=f"viz_{st.session_state.viz_key}_{timestamp}"
+                    scrolling=True
                 )
                 logger.info("Visualization displayed in provided placeholder")
         else:
-            # Use components.html to display the visualization in the current position
-            components.html(
-                html_content,
-                height=VISUALIZATION_HEIGHT + 50,  # Add some padding
-                scrolling=True,
-                key=f"viz_{st.session_state.viz_key}_{timestamp}"
-            )
+            # Create a container with a unique key based on the viz_key from session state
+            viz_key = f"viz_{st.session_state.viz_key}_{timestamp}"
+            viz_container = st.container()
+            # Use components.html to display the visualization in the current position without the key parameter
+            with viz_container:
+                components.html(
+                    html_content,
+                    height=VISUALIZATION_HEIGHT + 50,  # Add some padding
+                    scrolling=True
+                )
             logger.info("Visualization displayed in current position")
         
         # Log success
@@ -1238,7 +1242,7 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         logger.error(traceback.format_exc())
         
         if placeholder is not None:
-            with placeholder.container():
+            with placeholder:
                 st.error(error_msg)
         else:
             st.error(error_msg)
