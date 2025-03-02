@@ -850,36 +850,115 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
+    base_prompt = f"""
+    # D3.js Visualization Generation Task
+
+    Create a sophisticated, interactive D3.js version 7 visualization that follows these requirements:
+
+    ## Core Requirements
+    1. Create a function named createVisualization(data, svgElement) that:
+       - Clears any previous visualization content
+       - Sets up responsive SVG with proper viewBox
+       - Creates a configuration object with customizable parameters
+
+    2. Implement proper layout with:
+       - Configurable margins (top, right, bottom, left)
+       - Responsive dimensions based on container size
+       - Styled background with rounded corners and subtle shadow
+       - Window resize handler to redraw visualization
+
+    3. Process the data by:
+       - Grouping by source/category
+       - Detecting numeric columns automatically
+       - Setting sensible default axes
+       - Handling missing or invalid data
+
+    4. Create scales and axes with:
+       - Appropriate scale types based on data
+       - Padding in domains for visual clarity
+       - Grid lines with configurable opacity
+       - Formatted and styled axis ticks
+
+    5. Implement core visualization elements:
+       - Bars/points/lines with proper attributes
+       - Color scales to differentiate data sources
+       - Rounded corners and stroke styling
+       - Proper spacing between elements
+
+    6. Add basic interactivity:
+       - Detailed tooltips on hover showing all data properties
+       - Highlighting effects with smooth transitions
+       - Click interactions for detailed information
+       - Crosshair guides for precise data reading
+
+    7. Implement advanced interactions:
+       - Zoom functionality with constraints
+       - Brush component for range selection
+       - Reset zoom/brush button
+       - Axis selection dropdowns
+
+    8. Add animations and transitions:
+       - Entrance animations for elements
+       - Staggered animations for sequential effects
+       - Smooth transitions for all updates
+       - Subtle continuous animations (like pulsing)
+
+    9. Create UI components:
+       - Interactive legend for toggling visibility
+       - Dynamic title that updates with selected axes
+       - Axis labels that update dynamically
+       - Controls for changing visualization parameters
+
+    10. Ensure accessibility with:
+        - ARIA attributes for screen readers
+        - Keyboard navigation where appropriate
+        - Appropriate color contrasts
+        - Descriptive labels for interactive elements
+
+    11. Optimize performance by:
+        - Using efficient data binding and updates
+        - Implementing clipping paths
+        - Handling large datasets appropriately
+        - Optimizing animation performance
+
+    12. Handle errors gracefully:
+        - Validating input data
+        - Managing edge cases
+        - Providing fallbacks
+        - Including error messages for debugging
+
+    ## Data Format
+    The data will be an array of objects, where each object represents a data point with properties. The 'source' property indicates which dataset the point comes from.
+
+    ## Example Data
+    ```json
+    [
+      {{"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5}},
+      {{"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8}},
+      {{"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12}},
+      {{"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}}
+    ]
+    ```
+
+    Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
+
+    Data Schema:
+    {schema_str}
+
+    Sample Data:
+    {json.dumps(data_sample[:5], indent=2)}
+
+    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
+    """
+    
     if user_input:
         prompt = f"""
         # D3.js Visualization Generation Task
 
-        IMPORTANT: You are being asked to MODIFY an existing D3.js visualization based on the following user request:
-        "{user_input}"
-        
-        You must create a NEW version of the visualization that incorporates these changes while maintaining the core functionality.
-        
-        # Current Visualization Code (MODIFY THIS BASED ON USER REQUEST):
-        ```javascript
-        {st.session_state.current_viz}
-        ```
-
-        # User Modification Request:
+        ## USER MODIFICATION REQUEST:
         {user_input}
 
-        # Data Schema:
-        {schema_str}
-
-        # Sample Data:
-        {json.dumps(data_sample[:5], indent=2)}
-
-        Your response must be ONLY the complete, modified D3.js code with the requested changes implemented.
-        """
-    else:
-        prompt = f"""
-        # D3.js Visualization Generation Task
-
-        Create a sophisticated, interactive D3.js version 7 visualization that follows these requirements:
+        Create a sophisticated, interactive D3.js version 7 visualization that incorporates the user's modification request above while following these requirements:
 
         ## Core Requirements
         1. Create a function named createVisualization(data, svgElement) that:
@@ -966,6 +1045,11 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         ]
         ```
 
+        ## Current Visualization Code (MODIFY THIS BASED ON USER REQUEST):
+        ```javascript
+        {st.session_state.current_viz}
+        ```
+
         Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
 
         Data Schema:
@@ -976,8 +1060,12 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
 
         IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
         """
+    else:
+        prompt = base_prompt
     
     try:
+        logger.info(f"Sending request to OpenAI API. User input: {user_input[:100]}..." if len(user_input) > 100 else f"Sending request to OpenAI API. User input: {user_input}")
+        
         response = openai.ChatCompletion.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
@@ -988,6 +1076,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         if not d3_code.strip():
             raise ValueError("Generated D3 code is empty")
         
+        logger.info(f"Generated D3 code of length: {len(d3_code)}")
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
