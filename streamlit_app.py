@@ -1353,6 +1353,14 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
     Returns:
         str: Validated D3.js code.
     """
+    # Log user input to verify it's being passed correctly
+    logger.info(f"generate_and_validate_d3_code received user input: '{user_input}'")
+    
+    # Ensure user_input is treated as a string
+    if user_input is None:
+        user_input = ""
+    
+    # Generate the initial code with user input
     initial_code = generate_d3_code(df, api_key, user_input)
     cleaned_code = clean_d3_response(initial_code)
     
@@ -1417,32 +1425,40 @@ def main():
                 if user_input.lower().strip() == 'exit':
                     st.success("Visualization process completed.")
                 elif user_input:
+                    st.write(f"Processing request: '{user_input}'")  # Display to user for confirmation
+                    logger.info(f"Processing user request: '{user_input}'")
+                    
                     # Replace current visualization with loading animation
-                    viz_placeholder.empty()  # Completely clear the container
                     with viz_placeholder.container():
                         st.subheader("Updating Visualization")
                         display_loading_animation()
                     
-                    # Generate new visualization
-                    modified_d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key, user_input)
-                    
-                    # Log the difference to verify changes (for debugging)
-                    logger.info(f"User requested: {user_input}")
-                    logger.info(f"Code length before: {len(st.session_state.current_viz)}, after: {len(modified_d3_code)}")
-                    
-                    # Update session state
-                    st.session_state.current_viz = modified_d3_code
-                    st.session_state.workflow_history.append({
-                        "version": len(st.session_state.workflow_history) + 1,
-                        "request": user_input,
-                        "code": modified_d3_code
-                    })
-                    
-                    # Clear and update the visualization
-                    viz_placeholder.empty()
-                    with viz_placeholder.container():
-                        st.subheader("Current Visualization")
-                        display_visualization(st.session_state.current_viz)
+                    # Generate new visualization with the user input
+                    try:
+                        modified_d3_code = generate_and_validate_d3_code(
+                            st.session_state.preprocessed_df, 
+                            api_key, 
+                            user_input  # Explicitly pass user input
+                        )
+                        
+                        # Update state and display new visualization
+                        st.session_state.current_viz = modified_d3_code
+                        st.session_state.workflow_history.append({
+                            "version": len(st.session_state.workflow_history) + 1,
+                            "request": user_input,
+                            "code": modified_d3_code
+                        })
+                        
+                        # Update the visualization in place
+                        with viz_placeholder.container():
+                            st.subheader("Current Visualization")
+                            st.write("Visualization updated based on your request")
+                            display_visualization(st.session_state.current_viz)
+                            
+                    except Exception as e:
+                        st.error(f"Error updating visualization: {str(e)}")
+                        logger.error(f"Error in update visualization flow: {str(e)}")
+                        logger.error(traceback.format_exc())
                 else:
                     st.warning("Please enter a modification request or type 'exit' to finish.")
 
