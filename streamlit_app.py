@@ -243,6 +243,7 @@ def validate_d3_code(code: str) -> dict:
         dict: Validation results with 'valid' boolean and 'missing_features' list.
     """
     missing_features = []
+    warnings = []
     
     # Check if the code defines the createVisualization function
     if not re.search(r'function\s+createVisualization\s*\(data,\s*svgElement\)\s*{', code):
@@ -257,10 +258,29 @@ def validate_d3_code(code: str) -> dict:
     if code.count('{') != code.count('}'):
         missing_features.append("Basic Structure: Balanced braces")
     
+    # Check for potential SVG element handling issues
+    if 'd3.select("svg")' in code or 'd3.select("#viz-svg")' in code:
+        warnings.append("DOM Manipulation: Direct SVG selection instead of using provided svgElement")
+    
+    if re.search(r'svgElement\.node\(\)', code):
+        warnings.append("DOM Manipulation: Using svgElement.node() which may cause issues")
+    
+    if re.search(r'setAttribute\s*\(', code) and not re.search(r'\.attr\s*\(', code):
+        warnings.append("DOM Manipulation: Using setAttribute directly instead of D3's attr method")
+    
+    # Check if code appends to body instead of svgElement
+    if 'd3.select("body")' in code:
+        warnings.append("DOM Structure: Appending to body instead of svgElement")
+    
+    # Check for error handling
+    if not any(term in code for term in ['try {', 'catch (', 'if (!data', 'if (data', 'data.length', '=== 0', '== 0', '=== undefined', '== undefined']):
+        warnings.append("Error Handling: No basic data validation or error checking")
+    
     # Return dictionary with validation results
     return {
         "valid": len(missing_features) == 0,
-        "missing_features": missing_features
+        "missing_features": missing_features,
+        "warnings": warnings
     }
 
 def generate_improvement_instructions(validation_results: dict) -> str:
@@ -442,17 +462,20 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         
         ## REQUIREMENTS:
         1. Create a function named createVisualization(data, svgElement) that follows professional D3 standards
+           - IMPORTANT: svgElement parameter is a D3 selection, not a raw DOM element
+           - Always use svgElement.append() instead of d3.select("svg").append()
+           - Do NOT use .node() on svgElement unless absolutely necessary
         
         2. Include a comprehensive configuration object with:
            - Proper margins (top, right, bottom, left)
-           - Width and height
+           - Width and height derived from svgElement
            - Transition durations and easing functions
            - Color scales
            - Tooltip settings
            - Animation parameters
         
         3. Implement responsive design:
-           - Get container dimensions from parent element
+           - Get container dimensions from svgElement using .attr("width") and .attr("height")
            - Use viewBox for SVG scaling
            - Handle window resize events
            - Add preserveAspectRatio
@@ -582,18 +605,43 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     try:
         for attempt in range(max_attempts):
             validation_result = validate_d3_code(initial_code)
-            if validation_result.get("valid", False):
+            
+            # If code is valid and has no warnings, return it
+            if validation_result.get("valid", False) and not validation_result.get("warnings", []):
                 return initial_code
+                
+            # Prepare refinement issues list
+            refinement_issues = []
+            if not validation_result.get("valid", False):
+                refinement_issues.extend(validation_result.get("missing_features", []))
+            
+            if validation_result.get("warnings", []):
+                refinement_issues.extend(validation_result.get("warnings", []))
+            
+            # If there are no issues but validation isn't passing, add a generic issue
+            if not refinement_issues and not validation_result.get("valid", False):
+                refinement_issues.append("General D3.js code structure issues")
+            
+            issues_str = "\n".join([f"- {issue}" for issue in refinement_issues])
             
             refinement_prompt = f"""
             The following D3 code needs refinement to be valid:
             
+            ```javascript
             {initial_code}
+            ```
+            
+            Issues that need to be fixed:
+            {issues_str}
             
             Please provide a corrected version that:
             1. Defines a createVisualization(data, svgElement) function
             2. Uses only D3.js version 7 syntax
             3. Creates a valid visualization
+            4. Uses the svgElement parameter that is passed in (which is a D3 selection)
+            5. NEVER uses d3.select("svg") or d3.select("#viz-svg") directly
+            6. NEVER calls .node() method on svgElement unless absolutely necessary
+            7. Properly handles errors and edge cases
             
             Return ONLY the corrected D3 code without any explanations or comments.
             """
@@ -618,6 +666,9 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
                     content = response.choices[0].message.content
                 
                 initial_code = clean_d3_response(content)
+                
+                # Log the refinement attempt
+                logger.info(f"Refined D3 code (attempt {attempt+1}/{max_attempts}), code length: {len(initial_code)}")
             except Exception as e:
                 logger.error(f"Error in code refinement attempt {attempt+1}: {str(e)}")
                 continue
@@ -696,7 +747,7 @@ def display_visualization(d3_code: str) -> None:
             <style>
                 #visualization {{
                     width: 100%;
-                    height: 100%;
+                    height: 550px;
                     overflow: hidden;
                     margin: 0;
                     padding: 0;
@@ -733,54 +784,77 @@ def display_visualization(d3_code: str) -> None:
         </head>
         <body>
             <div id="visualization">
-                <svg id="viz-svg"></svg>
+                <!-- Create the SVG element explicitly with dimensions -->
+                <svg id="viz-svg" width="100%" height="100%"></svg>
             </div>
             
             <script>
                 console.log("Starting visualization render at timestamp: {timestamp}");
                 
-                try {{
-                    // The data from the DataFrame
-                    const data = {json.dumps(st.session_state.json_data)};
-                    
-                    // Debug data and code
-                    console.log("Data for visualization:", data);
-                    console.log("D3 code length:", `{len(d3_code)}` + " characters");
-                    
-                    // Get the SVG element
-                    const svgElement = d3.select("#viz-svg");
-                    
-                    // Clear any existing visualization
-                    svgElement.selectAll("*").remove();
-                    
-                    // Add the D3 code
-                    {d3_code}
-                    
-                    // Call the createVisualization function
+                // Wait for DOM to be fully loaded
+                document.addEventListener("DOMContentLoaded", function() {{
+                    renderVisualization();
+                }});
+                
+                // Fallback if DOMContentLoaded already fired
+                if (document.readyState === "complete" || document.readyState === "interactive") {{
+                    setTimeout(renderVisualization, 100);
+                }}
+                
+                function renderVisualization() {{
                     try {{
-                        if (typeof createVisualization === 'function') {{
-                            createVisualization(data, svgElement);
-                            console.log("Visualization successfully rendered");
-                        }} else {{
-                            throw new Error("createVisualization function not found in the generated code");
+                        // The data from the DataFrame
+                        const data = {json.dumps(st.session_state.json_data)};
+                        
+                        // Debug data and code
+                        console.log("Data for visualization:", data);
+                        console.log("D3 code length:", `{len(d3_code)}` + " characters");
+                        
+                        // First create a proper SVG with dimensions
+                        const containerDiv = d3.select("#visualization");
+                        const containerWidth = containerDiv.node().getBoundingClientRect().width;
+                        const containerHeight = containerDiv.node().getBoundingClientRect().height;
+                        
+                        // Select and prepare the SVG element
+                        const svgElement = d3.select("#viz-svg")
+                            .attr("width", containerWidth)
+                            .attr("height", containerHeight)
+                            .attr("viewBox", `0 0 ${{containerWidth}} ${{containerHeight}}`)
+                            .attr("preserveAspectRatio", "xMidYMid meet");
+                        
+                        // Clear any existing visualization
+                        svgElement.selectAll("*").remove();
+                        
+                        // Add the D3 code
+                        {d3_code}
+                        
+                        // Call the createVisualization function
+                        try {{
+                            if (typeof createVisualization === 'function') {{
+                                // Ensure we're passing a proper D3 selection, not a raw DOM element
+                                createVisualization(data, svgElement);
+                                console.log("Visualization successfully rendered");
+                            }} else {{
+                                throw new Error("createVisualization function not found in the generated code");
+                            }}
+                        }} catch (funcError) {{
+                            console.error("Error calling createVisualization:", funcError);
+                            document.getElementById("visualization").innerHTML = 
+                                `<div class="error-message">
+                                    <h3>Error Executing Visualization Function</h3>
+                                    <p>${{funcError.message}}</p>
+                                    <pre>${{funcError.stack}}</pre>
+                                </div>`;
                         }}
-                    }} catch (funcError) {{
-                        console.error("Error calling createVisualization:", funcError);
+                    }} catch (error) {{
+                        console.error("Error rendering visualization:", error);
                         document.getElementById("visualization").innerHTML = 
                             `<div class="error-message">
-                                <h3>Error Executing Visualization Function</h3>
-                                <p>${{funcError.message}}</p>
-                                <pre>${{funcError.stack}}</pre>
+                                <h3>Error Rendering Visualization</h3>
+                                <p>${{error.message}}</p>
+                                <pre>${{error.stack}}</pre>
                             </div>`;
                     }}
-                }} catch (error) {{
-                    console.error("Error rendering visualization:", error);
-                    document.getElementById("visualization").innerHTML = 
-                        `<div class="error-message">
-                            <h3>Error Rendering Visualization</h3>
-                            <p>${{error.message}}</p>
-                            <pre>${{error.stack}}</pre>
-                        </div>`;
                 }}
             </script>
         </body>
@@ -798,12 +872,9 @@ def display_visualization(d3_code: str) -> None:
         logger.info("Visualization displayed successfully")
         
     except Exception as e:
-        # Log error and display fallback message
-        logger.error(f"Error displaying visualization: {str(e)}")
-        st.error(f"""
-        Error displaying visualization. Please check the browser console for details.
-        Error: {str(e)}
-        """)
+        logger.error(f"Error in display_visualization: {str(e)}")
+        logger.error(traceback.format_exc())
+        st.error(f"Error displaying visualization. Please check the browser console for details. Error: {str(e)}")
 
 def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
@@ -1072,9 +1143,19 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     
     ## REQUIREMENTS:
     1. Create a COMPLETELY DIFFERENT visualization that fulfills the user request
+       - IMPORTANT: The svgElement parameter is a D3 selection, not a raw DOM element
+       - Always use svgElement.append() instead of d3.select("svg").append()
+       - Do NOT use .node() on svgElement unless absolutely necessary
+       
     2. Do NOT return code similar to the current code
+    
     3. Change the visualization type, layout, or core approach
-    4. Implement responsive design and proper error handling
+    
+    4. Implement responsive design:
+       - Get container dimensions from svgElement using .attr("width") and .attr("height")
+       - Use viewBox for SVG scaling
+       - Adapt the visualization to the container size
+    
     5. Add detailed comments explaining your visualization logic
     
     The code must start with 'function createVisualization(data, svgElement) {{'
