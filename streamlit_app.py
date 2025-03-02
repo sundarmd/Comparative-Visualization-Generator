@@ -1089,10 +1089,13 @@ def display_visualization(d3_code: str) -> None:
         </div>
         
         <script>
+            // Debug data to console
+            console.log("Starting visualization render...");
+            
             // The data will be populated from the DataFrame
             const data = {st.session_state.json_data};
             
-            // Debug data to console
+            // Debug data
             console.log("Data for visualization:", data);
             
             // Get the SVG element
@@ -1121,10 +1124,11 @@ def display_visualization(d3_code: str) -> None:
             }} catch (error) {{
                 console.error("Error rendering visualization:", error);
                 document.getElementById("visualization").innerHTML = 
-                    "<div style='color: red; padding: 20px;'>" + 
-                    "<h3>Error Rendering Visualization</h3>" +
-                    "<p>" + error.message + "</p>" +
-                    "<p>Check browser console for details.</p></div>";
+                    `<div style="color: red; padding: 20px;">
+                        <h3>Error Rendering Visualization</h3>
+                        <p>${{error.message}}</p>
+                        <pre>${{error.stack}}</pre>
+                    </div>`;
             }}
         </script>
     </body>
@@ -1135,19 +1139,33 @@ def display_visualization(d3_code: str) -> None:
     static_dir = Path(tempfile.gettempdir()) / "streamlit_viz"
     static_dir.mkdir(exist_ok=True)
     
-    # Create a temporary HTML file
+    # Create a temporary HTML file with timestamp to prevent caching
     viz_path = static_dir / f"visualization_{timestamp}.html"
-    with open(viz_path, "w") as f:
+    with open(viz_path, "w", encoding="utf-8") as f:
         f.write(html_content)
     
-    # Get the file URL
-    file_url = f"file://{viz_path}"
+    # Convert the file path to a URL
+    file_url = f"file://{viz_path.absolute()}"
     
-    # Use iframe to display the HTML file
-    components.iframe(file_url, height=600, scrolling=True)
-    
-    # Log that visualization was displayed
-    logger.info(f"Visualization displayed with iframe from: {file_url}")
+    try:
+        # Use iframe to display the visualization
+        components.iframe(
+            src=file_url,
+            height=600,
+            scrolling=True,
+            width="100%"
+        )
+        
+        # Log success
+        logger.info(f"Visualization displayed with iframe from: {file_url}")
+        
+    except Exception as e:
+        # Log error and display fallback message
+        logger.error(f"Error displaying visualization: {str(e)}")
+        st.error(f"""
+        Error displaying visualization. Please check the browser console for details.
+        Error: {str(e)}
+        """)
 
 def generate_fallback_visualization() -> str:
     """
