@@ -1,8 +1,9 @@
 .streamlit/secrets.toml
 .env
 
-# Instructions folder
+# Instructions folder and its contents
 Instructions/
+Instructions/**
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
