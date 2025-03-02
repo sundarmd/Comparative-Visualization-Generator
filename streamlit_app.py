@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 import time
 import tempfile
 from pathlib import Path
+import uuid
+import numpy as np
 
 # Load environment variables from .env file
 load_dotenv()
@@ -37,6 +39,28 @@ if 'update_viz' not in st.session_state:
     st.session_state.update_viz = False  # Flag to trigger visualization update
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []  # Stores the chat history
+
+# Import OpenAI with version compatibility
+try:
+    # Try newer OpenAI SDK style (v1.0.0+)
+    from openai import OpenAI
+    OPENAI_API_VERSION = "v1"
+    logger.info("Using OpenAI API v1 client")
+except ImportError:
+    # Fall back to older style
+    OPENAI_API_VERSION = "v0"
+    logger.info("Using OpenAI API v0 client")
+
+# Configure exceptions based on OpenAI version
+if OPENAI_API_VERSION == "v1":
+    RateLimitError = openai.RateLimitError 
+else:
+    try:
+        RateLimitError = openai.error.RateLimitError
+    except AttributeError:
+        # If neither works, create a minimal implementation
+        class RateLimitError(Exception):
+            pass
 
 def display_loading_animation():
     loading_html = """
@@ -119,10 +143,7 @@ def get_api_key() -> Optional[str]:
 
 def test_api_key(api_key: str) -> bool:
     """
-    Test if the provided API key is valid.
-    
     This function attempts to make a simple API call using the provided OpenAI API key.
-    If successful, the key is considered valid.
     
     Args:
         api_key (str): The OpenAI API key to test.
@@ -130,15 +151,23 @@ def test_api_key(api_key: str) -> bool:
     Returns:
         bool: True if the API key is valid, False otherwise.
     """
+    if not api_key:
+        return False
+    
     try:
-        openai.api_key = api_key
-        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
-        
-        openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": "Test"}],
-            max_tokens=5
-        )
+        # Test API key based on version
+        if OPENAI_API_VERSION == "v1":
+            client = OpenAI(api_key=api_key)
+            # Make a minimal API call to check if the key is valid
+            client.models.list(limit=1)
+        else:
+            openai.api_key = api_key
+            # Make a minimal API call to check if the key is valid
+            openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=5
+            )
         return True
     except Exception as e:
         logger.error(f"API key validation failed: {str(e)}")
@@ -383,7 +412,11 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         schema = df.dtypes.to_dict()
         schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
         
-        openai.api_key = api_key
+        # Initialize OpenAI client based on version
+        if OPENAI_API_VERSION == "v1":
+            client = OpenAI(api_key=api_key)
+        else:
+            openai.api_key = api_key
         
         # Get model and parameters
         model = os.getenv("DEFAULT_MODEL", "gpt-4")
@@ -459,20 +492,36 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         
         for attempt in range(max_retries):
             try:
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=[{
-                        "role": "system",
-                        "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
-                    }, {
-                        "role": "user",
-                        "content": prompt
-                    }],
-                    temperature=temperature,
-                    max_tokens=max_tokens
-                )
+                # Call API based on version
+                if OPENAI_API_VERSION == "v1":
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[{
+                            "role": "system",
+                            "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
+                        }, {
+                            "role": "user",
+                            "content": prompt
+                        }],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    d3_code = response.choices[0].message.content.strip()
+                else:
+                    response = openai.ChatCompletion.create(
+                        model=model,
+                        messages=[{
+                            "role": "system",
+                            "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
+                        }, {
+                            "role": "user",
+                            "content": prompt
+                        }],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    d3_code = response.choices[0].message.content.strip()
                 
-                d3_code = response.choices[0].message.content.strip()
                 logger.info(f"Generated D3 code length: {len(d3_code)} characters")
                 
                 # Validate the generated code has the required function
@@ -482,7 +531,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                 
                 return d3_code
                 
-            except openai.error.RateLimitError:
+            except RateLimitError:
                 if attempt < max_retries - 1:
                     logger.warning(f"Rate limit hit, retrying in {retry_delay} seconds (attempt {attempt+1}/{max_retries})")
                     time.sleep(retry_delay)
@@ -519,47 +568,67 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     Returns:
         str: Refined D3.js code, or the last attempt if refinement fails.
     """
-
-    openai.api_key = api_key
+    # Initialize API
+    if OPENAI_API_VERSION == "v1":
+        client = OpenAI(api_key=api_key)
+    else:
+        openai.api_key = api_key
     
     # Get model and parameters from environment variables or use defaults
     model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
-    for attempt in range(max_attempts):
-        validation_result = validate_d3_code(initial_code)
-        if validation_result.get("valid", False):
-            return initial_code
+    try:
+        for attempt in range(max_attempts):
+            validation_result = validate_d3_code(initial_code)
+            if validation_result.get("valid", False):
+                return initial_code
+            
+            refinement_prompt = f"""
+            The following D3 code needs refinement to be valid:
+            
+            {initial_code}
+            
+            Please provide a corrected version that:
+            1. Defines a createVisualization(data, svgElement) function
+            2. Uses only D3.js version 7 syntax
+            3. Creates a valid visualization
+            
+            Return ONLY the corrected D3 code without any explanations or comments.
+            """
+            
+            try:
+                # Call API based on version
+                if OPENAI_API_VERSION == "v1":
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": refinement_prompt}],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    content = response.choices[0].message.content
+                else:
+                    response = openai.ChatCompletion.create(
+                        model=model,
+                        messages=[{"role": "user", "content": refinement_prompt}],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    content = response.choices[0].message.content
+                
+                initial_code = clean_d3_response(content)
+            except Exception as e:
+                logger.error(f"Error in code refinement attempt {attempt+1}: {str(e)}")
+                continue
         
-        refinement_prompt = f"""
-        The following D3 code needs refinement to be valid:
-        
-        {initial_code}
-        
-        Please provide a corrected version that:
-        1. Defines a createVisualization(data, svgElement) function
-        2. Uses only D3.js version 7 syntax
-        3. Creates a valid visualization
-        
-        Return ONLY the corrected D3 code without any explanations or comments.
-        """
-        
-        try:
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=[{"role": "user", "content": refinement_prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            initial_code = clean_d3_response(response.choices[0].message.content)
-        except Exception as e:
-            logger.error(f"Error in code refinement attempt {attempt+1}: {str(e)}")
-            continue
-    
-    # If we've exhausted our attempts, return the last attempt
-    logger.warning("Failed to generate valid D3 code after maximum attempts")
-    return initial_code
+        # If we've exhausted our attempts, return the last attempt
+        logger.warning("Failed to generate valid D3 code after maximum attempts")
+        return initial_code
+    except Exception as e:
+        logger.error(f"Error in refine_d3_code: {str(e)}")
+        logger.error(traceback.format_exc())
+        return initial_code
 
 def clean_d3_response(response: str) -> str:
     """
@@ -881,7 +950,18 @@ def main():
                             
                         except Exception as e:
                             status.update(label="Error processing request", state="error")
-                            st.error(f"Error updating visualization: {str(e)}")
+                            error_message = str(e)
+                            
+                            # Provide more helpful error messages for common issues
+                            if "openai" in error_message.lower():
+                                if "api key" in error_message.lower():
+                                    error_message = "Invalid or expired OpenAI API key. Please check your API key and try again."
+                                elif "rate limit" in error_message.lower():
+                                    error_message = "OpenAI API rate limit exceeded. Please wait a minute and try again."
+                                else:
+                                    error_message = f"OpenAI API error: {error_message}. Please try again later."
+                            
+                            st.error(f"Error updating visualization: {error_message}")
                             logger.error(f"Error in visualization update flow: {str(e)}")
                             logger.error(traceback.format_exc())
 
@@ -957,7 +1037,11 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
-    openai.api_key = api_key
+    # Initialize OpenAI client based on version
+    if OPENAI_API_VERSION == "v1":
+        client = OpenAI(api_key=api_key)
+    else:
+        openai.api_key = api_key
     
     # Get model and parameters
     model = os.getenv("DEFAULT_MODEL", "gpt-4")
@@ -993,7 +1077,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     4. Implement responsive design and proper error handling
     5. Add detailed comments explaining your visualization logic
     
-    The code must start with 'function createVisualization(data, svgElement) {{' 
+    The code must start with 'function createVisualization(data, svgElement) {{'
     Return ONLY the complete JavaScript code.
     """
     
@@ -1006,20 +1090,37 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
         
         for attempt in range(max_retries):
             try:
-                response = openai.ChatCompletion.create(
-                    model=model,
-                    messages=[{
-                        "role": "system",
-                        "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
-                    }, {
-                        "role": "user",
-                        "content": prompt
-                    }],
-                    temperature=temperature,
-                    max_tokens=max_tokens
-                )
+                # Call API based on version
+                if OPENAI_API_VERSION == "v1":
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[{
+                            "role": "system",
+                            "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
+                        }, {
+                            "role": "user",
+                            "content": prompt
+                        }],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    d3_code = response.choices[0].message.content.strip()
+                else:
+                    response = openai.ChatCompletion.create(
+                        model=model,
+                        messages=[{
+                            "role": "system",
+                            "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
+                        }, {
+                            "role": "user",
+                            "content": prompt
+                        }],
+                        temperature=temperature,
+                        max_tokens=max_tokens
+                    )
+                    d3_code = response.choices[0].message.content.strip()
                 
-                d3_code = clean_d3_response(response.choices[0].message.content)
+                d3_code = clean_d3_response(d3_code)
                 logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
                 
                 # Verify the new code is actually different
@@ -1030,7 +1131,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                 
                 return d3_code
                 
-            except openai.error.RateLimitError:
+            except RateLimitError:
                 if attempt < max_retries - 1:
                     logger.warning(f"Rate limit hit, retrying in {retry_delay} seconds (attempt {attempt+1}/{max_retries})")
                     time.sleep(retry_delay)
