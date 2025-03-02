@@ -823,9 +823,6 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     """
     Generate D3.js code using OpenAI API with emphasis on comparison and readability.
     
-    This function constructs a prompt for the OpenAI API, including data schema and sample,
-    and generates D3.js code based on the input DataFrame and user requirements.
-    
     Args:
         df (pd.DataFrame): The preprocessed DataFrame.
         api_key (str): OpenAI API key.
@@ -833,238 +830,91 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     Returns:
         str: Generated D3.js code.
-    
-    Raises:
-        ValueError: If generated D3 code is empty.
-        Exception: For any errors during API call or code generation.
     """
-    logger.info("Starting D3 code generation")
+    user_input = str(user_input).strip() if user_input is not None else ""
+    
+    # Debug log
+    logger.info(f"GENERATE D3 CODE FUNCTION CALLED WITH USER INPUT: '{user_input}'")
+    
     data_sample = df.head(5).to_dict(orient='records')
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
     openai.api_key = api_key
     
-    # Get model and parameters from environment variables or use defaults
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    # Get model and parameters
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
-    base_prompt = f"""
-    # D3.js Visualization Generation Task
-
-    Create a sophisticated, interactive D3.js version 7 visualization that follows these requirements:
-
-    ## Core Requirements
-    1. Create a function named createVisualization(data, svgElement) that:
-       - Clears any previous visualization content
-       - Sets up responsive SVG with proper viewBox
-       - Creates a configuration object with customizable parameters
-
-    2. Implement proper layout with:
-       - Configurable margins (top, right, bottom, left)
-       - Responsive dimensions based on container size
-       - Styled background with rounded corners and subtle shadow
-       - Window resize handler to redraw visualization
-
-    3. Process the data by:
-       - Grouping by source/category
-       - Detecting numeric columns automatically
-       - Setting sensible default axes
-       - Handling missing or invalid data
-
-    4. Create scales and axes with:
-       - Appropriate scale types based on data
-       - Padding in domains for visual clarity
-       - Grid lines with configurable opacity
-       - Formatted and styled axis ticks
-
-    5. Implement core visualization elements:
-       - Bars/points/lines with proper attributes
-       - Color scales to differentiate data sources
-       - Rounded corners and stroke styling
-       - Proper spacing between elements
-
-    6. Add basic interactivity:
-       - Detailed tooltips on hover showing all data properties
-       - Highlighting effects with smooth transitions
-       - Click interactions for detailed information
-       - Crosshair guides for precise data reading
-
-    7. Implement advanced interactions:
-       - Zoom functionality with constraints
-       - Brush component for range selection
-       - Reset zoom/brush button
-       - Axis selection dropdowns
-
-    8. Add animations and transitions:
-       - Entrance animations for elements
-       - Staggered animations for sequential effects
-       - Smooth transitions for all updates
-       - Subtle continuous animations (like pulsing)
-
-    9. Create UI components:
-       - Interactive legend for toggling visibility
-       - Dynamic title that updates with selected axes
-       - Axis labels that update dynamically
-       - Controls for changing visualization parameters
-
-    10. Ensure accessibility with:
-        - ARIA attributes for screen readers
-        - Keyboard navigation where appropriate
-        - Appropriate color contrasts
-        - Descriptive labels for interactive elements
-
-    11. Optimize performance by:
-        - Using efficient data binding and updates
-        - Implementing clipping paths
-        - Handling large datasets appropriately
-        - Optimizing animation performance
-
-    12. Handle errors gracefully:
-        - Validating input data
-        - Managing edge cases
-        - Providing fallbacks
-        - Including error messages for debugging
-
-    ## Data Format
-    The data will be an array of objects, where each object represents a data point with properties. The 'source' property indicates which dataset the point comes from.
-
-    ## Example Data
-    ```json
-    [
-      {{"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5}},
-      {{"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8}},
-      {{"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12}},
-      {{"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}}
-    ]
-    ```
-
-    Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
-
-    Data Schema:
-    {schema_str}
-
-    Sample Data:
-    {json.dumps(data_sample[:5], indent=2)}
-
-    IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
-    """
-    
-    if user_input:
+    # Check if this is a modification request
+    if user_input and hasattr(st.session_state, 'current_viz') and st.session_state.current_viz:
         prompt = f"""
-        # D3.js Visualization Generation Task
-
-        ## USER MODIFICATION REQUEST:
-        {user_input}
-
-        Create a sophisticated, interactive D3.js version 7 visualization that incorporates the user's modification request above while following these requirements:
-
-        ## Core Requirements
-        1. Create a function named createVisualization(data, svgElement) that:
-           - Clears any previous visualization content
-           - Sets up responsive SVG with proper viewBox
-           - Creates a configuration object with customizable parameters
-
-        2. Implement proper layout with:
-           - Configurable margins (top, right, bottom, left)
-           - Responsive dimensions based on container size
-           - Styled background with rounded corners and subtle shadow
-           - Window resize handler to redraw visualization
-
-        3. Process the data by:
-           - Grouping by source/category
-           - Detecting numeric columns automatically
-           - Setting sensible default axes
-           - Handling missing or invalid data
-
-        4. Create scales and axes with:
-           - Appropriate scale types based on data
-           - Padding in domains for visual clarity
-           - Grid lines with configurable opacity
-           - Formatted and styled axis ticks
-
-        5. Implement core visualization elements:
-           - Bars/points/lines with proper attributes
-           - Color scales to differentiate data sources
-           - Rounded corners and stroke styling
-           - Proper spacing between elements
-
-        6. Add basic interactivity:
-           - Detailed tooltips on hover showing all data properties
-           - Highlighting effects with smooth transitions
-           - Click interactions for detailed information
-           - Crosshair guides for precise data reading
-
-        7. Implement advanced interactions:
-           - Zoom functionality with constraints
-           - Brush component for range selection
-           - Reset zoom/brush button
-           - Axis selection dropdowns
-
-        8. Add animations and transitions:
-           - Entrance animations for elements
-           - Staggered animations for sequential effects
-           - Smooth transitions for all updates
-           - Subtle continuous animations (like pulsing)
-
-        9. Create UI components:
-           - Interactive legend for toggling visibility
-           - Dynamic title that updates with selected axes
-           - Axis labels that update dynamically
-           - Controls for changing visualization parameters
-
-        10. Ensure accessibility with:
-            - ARIA attributes for screen readers
-            - Keyboard navigation where appropriate
-            - Appropriate color contrasts
-            - Descriptive labels for interactive elements
-
-        11. Optimize performance by:
-            - Using efficient data binding and updates
-            - Implementing clipping paths
-            - Handling large datasets appropriately
-            - Optimizing animation performance
-
-        12. Handle errors gracefully:
-            - Validating input data
-            - Managing edge cases
-            - Providing fallbacks
-            - Including error messages for debugging
-
-        ## Data Format
-        The data will be an array of objects, where each object represents a data point with properties. The 'source' property indicates which dataset the point comes from.
-
-        ## Example Data
-        ```json
-        [
-          {{"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5}},
-          {{"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8}},
-          {{"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12}},
-          {{"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}}
-        ]
-        ```
-
-        ## Current Visualization Code (MODIFY THIS BASED ON USER REQUEST):
+        # VISUALIZATION MODIFICATION REQUEST
+        
+        ## USER REQUEST: 
+        "{user_input}"
+        
+        ## CURRENT CODE TO MODIFY:
         ```javascript
         {st.session_state.current_viz}
         ```
-
-        Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
-
-        Data Schema:
-        {schema_str}
-
-        Sample Data:
+        
+        ## DATA INFORMATION:
+        Schema: {schema_str}
+        
+        Sample data: 
+        ```json
         {json.dumps(data_sample[:5], indent=2)}
-
-        IMPORTANT: Your entire response must be valid D3.js code that can be executed directly. Do not include any text before or after the code.
+        ```
+        
+        ## INSTRUCTIONS:
+        1. YOU MUST MAKE CHANGES to the visualization according to the user's request
+        2. DO NOT return the same code - the visualization must be modified
+        3. Return ONLY the complete JavaScript code with no explanations
+        4. Make sure to define the createVisualization(data, svgElement) function
+        5. The visualization should be responsive and interactive
+        
+        YOUR RESPONSE MUST START WITH 'function createVisualization' AND CONTAIN ONLY D3.js CODE.
         """
+        
+        logger.info("USING MODIFICATION PROMPT WITH CURRENT VIZ CODE")
     else:
-        prompt = base_prompt
+        # Initial visualization creation
+        prompt = f"""
+        # D3.js VISUALIZATION CREATION
+        
+        Create a D3.js version 7 visualization based on the following data:
+        
+        ## DATA INFORMATION:
+        Schema: {schema_str}
+        
+        Sample data: 
+        ```json
+        {json.dumps(data_sample[:5], indent=2)}
+        ```
+        
+        ## INSTRUCTIONS:
+        1. Create a function named createVisualization(data, svgElement)
+        2. The function should create a clear, interactive visualization
+        3. Use D3.js version 7 syntax
+        4. Return ONLY the complete JavaScript code with no explanations
+        5. Make the visualization responsive using viewBox and resize listeners
+        
+        USER PREFERENCES (if any):
+        "{user_input}"
+        
+        YOUR RESPONSE MUST START WITH 'function createVisualization' AND CONTAIN ONLY D3.js CODE.
+        """
+        
+        logger.info("USING INITIAL CREATION PROMPT")
+    
+    # Log prompt length for debugging
+    logger.info(f"Prompt length: {len(prompt)} characters")
     
     try:
-        logger.info(f"Sending request to OpenAI API. User input: {user_input[:100]}..." if len(user_input) > 100 else f"Sending request to OpenAI API. User input: {user_input}")
+        # Log API call for debugging
+        logger.info(f"Calling OpenAI API with model: {model}")
         
         response = openai.ChatCompletion.create(
             model=model,
@@ -1072,15 +922,32 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
             temperature=temperature,
             max_tokens=max_tokens
         )
-        d3_code = response.choices[0].message.content
-        if not d3_code.strip():
-            raise ValueError("Generated D3 code is empty")
         
-        logger.info(f"Generated D3 code of length: {len(d3_code)}")
+        d3_code = response.choices[0].message.content
+        
+        # Check if the response actually contains D3.js code
+        if "function createVisualization" not in d3_code:
+            logger.error("API response does not contain a createVisualization function")
+            d3_code = fix_missing_create_visualization(d3_code)
+        
+        # Log code generation success
+        logger.info(f"Generated D3 code length: {len(d3_code)} characters")
+        
         return d3_code
     except Exception as e:
         logger.error(f"Error generating D3 code: {str(e)}")
+        logger.error(traceback.format_exc())
         return generate_fallback_visualization()
+
+def fix_missing_create_visualization(code):
+    """Wrap code in createVisualization function if needed."""
+    if "function createVisualization" not in code:
+        fixed_code = """function createVisualization(data, svgElement) {
+            // Auto-wrapped code
+            """ + code + """
+        }"""
+        return fixed_code
+    return code
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
     """
@@ -1159,116 +1026,108 @@ def clean_d3_response(response: str) -> str:
     
     return '\n'.join(clean_lines)
 
-def display_visualization(d3_code: str):
+def display_visualization(d3_code: str) -> None:
     """
-    Display the D3.js visualization using an iframe and add a download button.
+    Display the D3.js visualization in the Streamlit app with forced refresh.
+    
+    Args:
+        d3_code (str): The D3.js code to display.
     """
+    # Generate a unique timestamp to prevent caching
+    timestamp = int(time.time())
+    
+    # Create HTML with the D3.js code
     html_content = f"""
     <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="utf-8">
         <script src="https://d3js.org/d3.v7.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js"></script>
+        <script src="https://unpkg.com/d3-simple-slider"></script>
+        <script src="https://cdn.jsdelivr.net/npm/d3-legend@2.25.6/d3-legend.min.js"></script>
         <style>
             #visualization {{
                 width: 100%;
-                height: 100vh;
-                overflow: visible;
-                border: 1px solid #eee;
+                height: 100%;
+                margin: 0;
+                padding: 0;
             }}
+            
             svg {{
                 width: 100%;
                 height: 100%;
-                display: block;
+                background-color: white;
             }}
+            
             .tooltip {{
                 position: absolute;
-                background-color: white;
+                background-color: rgba(255, 255, 255, 0.9);
                 border: 1px solid #ddd;
                 padding: 10px;
-                border-radius: 5px;
+                border-radius: 4px;
                 pointer-events: none;
+                font-size: 12px;
+                z-index: 1000;
             }}
         </style>
     </head>
     <body>
-        <div id="visualization"></div>
-        <div id="error-display" style="color: red; padding: 10px; display: none;"></div>
+        <div id="visualization">
+            <svg id="viz-svg"></svg>
+        </div>
         
         <script>
-            // Error handling function
-            function handleError(error) {{
-                console.error("Visualization error:", error);
-                document.getElementById("error-display").textContent = "Error: " + error.message;
-                document.getElementById("error-display").style.display = "block";
-            }}
+            // The data will be populated from the DataFrame
+            const data = {st.session_state.json_data};
+            
+            // Debug data to console
+            console.log("Data for visualization:", data);
+            
+            // Get the SVG element
+            const svgElement = d3.select("#viz-svg");
+            
+            // Clear any existing visualization
+            svgElement.selectAll("*").remove();
             
             try {{
-                // Create the SVG element
-                const svgElement = d3.select("#visualization")
-                    .append("svg")
-                    .attr("width", "100%")
-                    .attr("height", "100%")
-                    .attr("viewBox", "0 0 960 540")
-                    .attr("preserveAspectRatio", "xMidYMid meet");
-                
-                // Get the data from the URL hash
-                let vizData;
-                try {{
-                    const hashData = window.location.hash.slice(1).split('&')[0];
-                    vizData = JSON.parse(decodeURIComponent(hashData));
-                    console.log("Data loaded successfully. First record:", vizData[0]);
-                }} catch (dataError) {{
-                    handleError(new Error("Failed to parse data: " + dataError.message));
-                }}
-                
-                // Define the D3 visualization code
+                // Initialize the visualization with the data
                 {d3_code}
                 
-                // Call the createVisualization function if data is available
-                if (vizData && vizData.length > 0) {{
-                    console.log("Calling createVisualization with", vizData.length, "records");
-                    createVisualization(vizData, svgElement);
+                // Call the createVisualization function
+                createVisualization(data, svgElement);
+                
+                // Add a resize handler to make the visualization responsive
+                window.addEventListener('resize', function() {{
+                    // Clear existing visualization
+                    svgElement.selectAll("*").remove();
                     
-                    // Make the visualization responsive
-                    window.addEventListener('resize', function() {{
-                        console.log("Window resized");
-                        // Clear previous content
-                        svgElement.selectAll("*").remove();
-                        // Recreate visualization
-                        createVisualization(vizData, svgElement);
-                    }});
-                }} else {{
-                    handleError(new Error("No data available or data is empty"));
-                }}
+                    // Redraw with new dimensions
+                    createVisualization(data, svgElement);
+                }});
+                
+                console.log("Visualization successfully rendered");
             }} catch (error) {{
-                handleError(error);
+                console.error("Error rendering visualization:", error);
+                document.getElementById("visualization").innerHTML = 
+                    "<div style='color: red; padding: 20px;'>" + 
+                    "<h3>Error Rendering Visualization</h3>" +
+                    "<p>" + error.message + "</p>" +
+                    "<p>Check browser console for details.</p></div>";
             }}
         </script>
     </body>
     </html>
     """
     
-    # Encode the data to pass it to the iframe
-    try:
-        # Convert DataFrame to records and limit to 1000 records if too large
-        df_records = st.session_state.preprocessed_df.to_dict(orient='records')
-        if len(df_records) > 1000:
-            st.warning("Dataset is large. Limiting visualization to first 1000 records for performance.")
-            df_records = df_records[:1000]
-        
-        encoded_data = urllib.parse.quote(json.dumps(df_records))
-        
-        # Display the iframe with the encoded data in the URL hash
-        st.components.v1.iframe(
-            f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
-            width=960, 
-            height=540, 
-            scrolling=True
-        )
-    except Exception as e:
-        st.error(f"Error displaying visualization: {str(e)}")
-        st.code(traceback.format_exc())
+    # Display the HTML content in an iframe with a unique URL to prevent caching
+    html_file = f"visualization_{timestamp}.html"
+    
+    # Use components.html to display the HTML content
+    # The height parameter ensures the visualization is fully visible
+    components.html(html_content, height=600, scrolling=True)
+    
+    # Log that visualization was displayed
+    logger.info(f"Visualization displayed with timestamp: {timestamp}")
 
 def generate_fallback_visualization() -> str:
     """
@@ -1419,48 +1278,68 @@ def main():
                 display_visualization(st.session_state.current_viz)
 
             st.subheader("Modify Visualization")
-            user_input = st.text_area("Enter your modification request (or type 'exit' to finish):", height=100)
+            user_input = st.text_area("Enter your visualization request:", 
+                                      height=100,
+                                      help="Describe what changes you want to make to the visualization")
             
-            if st.button("Update Visualization"):
-                if user_input.lower().strip() == 'exit':
-                    st.success("Visualization process completed.")
-                elif user_input:
-                    st.write(f"Processing request: '{user_input}'")  # Display to user for confirmation
-                    logger.info(f"Processing user request: '{user_input}'")
-                    
-                    # Replace current visualization with loading animation
-                    with viz_placeholder.container():
-                        st.subheader("Updating Visualization")
-                        display_loading_animation()
-                    
-                    # Generate new visualization with the user input
-                    try:
-                        modified_d3_code = generate_and_validate_d3_code(
-                            st.session_state.preprocessed_df, 
-                            api_key, 
-                            user_input  # Explicitly pass user input
-                        )
-                        
-                        # Update state and display new visualization
-                        st.session_state.current_viz = modified_d3_code
-                        st.session_state.workflow_history.append({
-                            "version": len(st.session_state.workflow_history) + 1,
-                            "request": user_input,
-                            "code": modified_d3_code
-                        })
-                        
-                        # Update the visualization in place
-                        with viz_placeholder.container():
-                            st.subheader("Current Visualization")
-                            st.write("Visualization updated based on your request")
-                            display_visualization(st.session_state.current_viz)
-                            
-                    except Exception as e:
-                        st.error(f"Error updating visualization: {str(e)}")
-                        logger.error(f"Error in update visualization flow: {str(e)}")
-                        logger.error(traceback.format_exc())
+            if st.button("🔄 Update Visualization", use_container_width=True, type="primary"):
+                if not user_input.strip():
+                    st.warning("Please enter a request to update the visualization.")
                 else:
-                    st.warning("Please enter a modification request or type 'exit' to finish.")
+                    # Show processing message
+                    with st.status("Processing your request...", expanded=True) as status:
+                        st.write(f"Working on: '{user_input}'")
+                        
+                        # Step 1: Generate the new visualization code
+                        try:
+                            # Force creation of a new visualization code
+                            new_d3_code = generate_d3_code(
+                                st.session_state.preprocessed_df, 
+                                api_key, 
+                                user_input
+                            )
+                            
+                            # Compare old and new code
+                            old_code = st.session_state.current_viz if 'current_viz' in st.session_state else ""
+                            if new_d3_code == old_code:
+                                logger.warning("Generated code is identical to current code")
+                                st.warning("The model generated identical code. Trying again with stronger instructions...")
+                                
+                                # Try again with stronger prompt
+                                new_d3_code = generate_d3_code_with_forced_changes(
+                                    st.session_state.preprocessed_df,
+                                    api_key,
+                                    user_input,
+                                    old_code
+                                )
+                            
+                            # Step 2: Update the session state
+                            st.session_state.current_viz = new_d3_code
+                            
+                            # Add to history
+                            if 'workflow_history' not in st.session_state:
+                                st.session_state.workflow_history = []
+                                
+                            st.session_state.workflow_history.append({
+                                "version": len(st.session_state.workflow_history) + 1,
+                                "request": user_input,
+                                "code": new_d3_code
+                            })
+                            
+                            status.update(label="Request completed!", state="complete")
+                            
+                            # Step 3: Display the updated visualization (in a cleared container)
+                            st.subheader("Updated Visualization")
+                            st.caption(f"Based on your request: '{user_input}'")
+                            
+                            # Force re-render of visualization
+                            display_visualization(new_d3_code)
+                            
+                        except Exception as e:
+                            status.update(label="Error processing request", state="error")
+                            st.error(f"Error updating visualization: {str(e)}")
+                            logger.error(f"Error in visualization update flow: {str(e)}")
+                            logger.error(traceback.format_exc())
 
             with st.expander("View/Edit Visualization Code"):
                 code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
@@ -1511,6 +1390,64 @@ def main():
             st.code(traceback.format_exc())  # Display traceback for debugging
     else:
         st.info("Please upload both CSV files to visualize your data")
+
+def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
+    """Generate D3 code with stronger instructions to force changes."""
+    # Create a stronger prompt that emphasizes the need for changes
+    data_sample = df.head(5).to_dict(orient='records')
+    schema = df.dtypes.to_dict()
+    schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
+    
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+    max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
+    temperature = float(os.getenv("TEMPERATURE", "0.9"))  # Higher temperature for more variation
+    
+    prompt = f"""
+    # URGENT VISUALIZATION MODIFICATION REQUEST
+    
+    ## USER REQUEST: 
+    "{user_input}"
+    
+    ## CURRENT CODE (MUST BE CHANGED):
+    ```javascript
+    {current_code}
+    ```
+    
+    ## DATA INFORMATION:
+    Schema: {schema_str}
+    
+    Sample data: 
+    ```json
+    {json.dumps(data_sample[:5], indent=2)}
+    ```
+    
+    ## CRITICAL INSTRUCTIONS:
+    1. YOU MUST SIGNIFICANTLY MODIFY THE VISUALIZATION - THE CURRENT VERSION IS UNACCEPTABLE
+    2. Make VISIBLE and OBVIOUS changes according to the user's request
+    3. Consider changing: colors, chart type, layout, labels, interactions, etc.
+    4. Return ONLY the complete JavaScript code with createVisualization function
+    5. DO NOT return the same or similar code - dramatic changes are required
+    
+    YOUR RESPONSE MUST BE COMPLETELY DIFFERENT FROM THE CURRENT CODE.
+    """
+    
+    logger.info("Using forced change prompt due to identical code generation")
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens
+        )
+        
+        d3_code = response.choices[0].message.content
+        logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
+        
+        return d3_code
+    except Exception as e:
+        logger.error(f"Error in forced code generation: {str(e)}")
+        return current_code
 
 if __name__ == "__main__":
     main()
