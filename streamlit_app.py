@@ -255,66 +255,96 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
     base_prompt = f"""
-    # D3.js Code Generation Task
+    # D3.js Visualization Generation Task
 
-    Generate ONLY D3.js version 7 code for a sophisticated, interactive, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
+    Create a sophisticated, interactive D3.js version 7 visualization that follows these requirements:
 
-    Critical Requirements for D3.js Visualization:
-    1. Create a function named createVisualization(data, svgElement)
-    2. Implement a responsive SVG that adjusts its size based on the content
-    3. Utilize the full width and height provided (1000x600 pixels)
-    4. Implement zoom, pan, and brush functionality for exploring the data
-    5. Ensure efficient use of space, minimizing empty areas
-    6. Add appropriate margins, title, axes labels, and an interactive legend
-    7. Use different colors for each data source and implement a color scale
-    8. Implement tooltips showing full information on hover
-    9. Include smooth transitions for any data updates or interactions
-    10. Handle potential overlapping of data points or labels
-    11. Always have grid lines on the visualization
-    12. Animate the visualization as much as possible
-    13. Utilize d3.select() for DOM manipulation and d3.data() for data binding
-    14. Implement advanced scales: d3.scaleLinear(), d3.scaleBand(), d3.scaleTime(), d3.scaleOrdinal(d3.schemeCategory10)
-    15. Create dynamic, animated axes using d3.axisBottom(), d3.axisLeft() with custom tick formatting
-    16. Implement smooth transitions and animations using d3.transition() and d3.easeCubic
-    17. Utilize d3.line(), d3.area(), d3.arc() for creating complex shapes and paths
-    18. Implement interactivity: d3.brush(), d3.zoom(), d3.drag() for user interaction
-    19. Use d3.interpolate() for smooth color and value transitions
-    20. Implement d3.forceSimulation() for force-directed graph layouts if applicable
-    21. Utilize d3.geoPath() and d3.geoProjection() for geographical visualizations if applicable
-    22. Use d3.contours() and d3.density2D() for density and contour visualizations if applicable
-    23. Implement d3.voronoi() for proximity-based visualizations if applicable
-    24. Utilize d3.chord() and d3.ribbon() for relationship visualizations if applicable
-    25. Implement advanced event handling with d3.on() for mouseover, click, etc.
-    26. Use d3.format() for number formatting in tooltips and labels
-    27. Implement d3.timeFormat() for date/time formatting if applicable
-    28. Utilize d3.range() and d3.shuffle() for data generation and randomization if needed
-    29. Implement d3.nest() for data restructuring and aggregation if needed
-    30. Use d3.queue() for asynchronous data loading and processing
-    31. Implement accessibility features using ARIA attributes
-    32. Optimize performance using d3.quadtree() for spatial indexing if applicable
-    33. Implement responsive design using d3.select(window).on("resize", ...)
-    34. Focus on creating a comparative visualization that highlights data differences
-    35. Implement error handling for invalid data formats and gracefully handle missing data
-    36. Create an interactive, filterable legend using d3.dispatch() for coordinated views
-    37. Implement crosshair functionality for precise data reading
-    38. Add a subtle, styled background using d3.select().append("rect") with rounded corners
-    39. Ensure the visualization updates smoothly when data changes or on user interaction
-    40. Use d3.transition().duration() to control animation speed, with longer durations for more complex animations
-    41. Implement staggered animations using d3.transition().delay() to create cascading effects
-    42. Utilize d3.easeElastic, d3.easeBack, or custom easing functions for more dynamic animations
-    43. Implement enter, update, and exit animations for data changes
-    44. Use d3.interpolateString() for smooth transitions between different text values
-    45. Implement path animations using d3.interpolate() for custom interpolators
-    46. Create looping animations using d3.timer() for continuous effects if applicable
-    47. Implement chained transitions using .transition().transition() for sequential animations
-    48. Use d3.active() to coordinate multiple animations and prevent overlapping
-    49. Implement FLIP (First, Last, Invert, Play) animations for layout changes if applicable
-    50. Add dropdowns or other UI elements for users to change the variables displayed on each axis
-    51. Implement a brush reset button and functionality
-    52. Add a chart title and make it responsive to window resizing
-    53. Implement a sophisticated tooltip that shows all relevant information and follows the mouse
-    54. Create a legend that allows toggling visibility of different data categories
-    55. Implement a size scale for data points based on a specific attribute
+    ## Core Requirements
+    1. Create a function named createVisualization(data, svgElement) that:
+       - Clears any previous visualization content
+       - Sets up responsive SVG with proper viewBox
+       - Creates a configuration object with customizable parameters
+
+    2. Implement proper layout with:
+       - Configurable margins (top, right, bottom, left)
+       - Responsive dimensions based on container size
+       - Styled background with rounded corners and subtle shadow
+       - Window resize handler to redraw visualization
+
+    3. Process the data by:
+       - Grouping by source/category
+       - Detecting numeric columns automatically
+       - Setting sensible default axes
+       - Handling missing or invalid data
+
+    4. Create scales and axes with:
+       - Appropriate scale types based on data
+       - Padding in domains for visual clarity
+       - Grid lines with configurable opacity
+       - Formatted and styled axis ticks
+
+    5. Implement core visualization elements:
+       - Bars/points/lines with proper attributes
+       - Color scales to differentiate data sources
+       - Rounded corners and stroke styling
+       - Proper spacing between elements
+
+    6. Add basic interactivity:
+       - Detailed tooltips on hover showing all data properties
+       - Highlighting effects with smooth transitions
+       - Click interactions for detailed information
+       - Crosshair guides for precise data reading
+
+    7. Implement advanced interactions:
+       - Zoom functionality with constraints
+       - Brush component for range selection
+       - Reset zoom/brush button
+       - Axis selection dropdowns
+
+    8. Add animations and transitions:
+       - Entrance animations for elements
+       - Staggered animations for sequential effects
+       - Smooth transitions for all updates
+       - Subtle continuous animations (like pulsing)
+
+    9. Create UI components:
+       - Interactive legend for toggling visibility
+       - Dynamic title that updates with selected axes
+       - Axis labels that update dynamically
+       - Controls for changing visualization parameters
+
+    10. Ensure accessibility with:
+        - ARIA attributes for screen readers
+        - Keyboard navigation where appropriate
+        - Appropriate color contrasts
+        - Descriptive labels for interactive elements
+
+    11. Optimize performance by:
+        - Using efficient data binding and updates
+        - Implementing clipping paths
+        - Handling large datasets appropriately
+        - Optimizing animation performance
+
+    12. Handle errors gracefully:
+        - Validating input data
+        - Managing edge cases
+        - Providing fallbacks
+        - Including error messages for debugging
+
+    ## Data Format
+    The data will be an array of objects, where each object represents a data point with properties. The 'source' property indicates which dataset the point comes from.
+
+    ## Example Data
+    ```json
+    [
+      {"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5},
+      {"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8},
+      {"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12},
+      {"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}
+    ]
+    ```
+
+    Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
 
     Data Schema:
     {schema_str}
@@ -327,32 +357,96 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     
     if user_input:
         prompt = f"""
-        # D3.js Code Generation Task
+        # D3.js Visualization Generation Task
 
-        Generate ONLY D3.js version 7 code for a sophisticated, interactive, and comparative visualization. Do not include any explanations, comments, or markdown formatting.
+        Create a sophisticated, interactive D3.js version 7 visualization that follows these requirements:
 
-        Critical Requirements:
-        1. Create a function named createVisualization(data, svgElement)
-        2. Implement a visualization that explicitly compares data from two CSV files AND satisfies this user prompt:
-        ---
-        {user_input}
-        ---
-        3. Solve the overlapping labels problem:
-           - Rotate labels if necessary (e.g., 45-degree angle)
-           - Use a larger SVG size (e.g., width: 1000px, height: 600px) to accommodate all labels
-           - Implement label truncation or abbreviation for long names
-        4. Use different colors for each data source and implement a color scale
-        5. Include an interactive legend clearly indicating which color represents which data source
-        6. Ensure appropriate spacing between data points
-        7. Add tooltips showing full information on hover
-        8. Implement responsive design to fit various screen sizes
-        9. Include smooth transitions for any data updates
-        10. Implement zoom, pan, and brush functionality
-        11. Add dropdowns or other UI elements for users to change the variables displayed on each axis
-        12. Implement a brush reset button and functionality
-        13. Add a chart title and make it responsive to window resizing
-        14. Create a sophisticated tooltip that shows all relevant information and follows the mouse
-        15. Implement a size scale for data points based on a specific attribute
+        ## Core Requirements
+        1. Create a function named createVisualization(data, svgElement) that:
+           - Clears any previous visualization content
+           - Sets up responsive SVG with proper viewBox
+           - Creates a configuration object with customizable parameters
+
+        2. Implement proper layout with:
+           - Configurable margins (top, right, bottom, left)
+           - Responsive dimensions based on container size
+           - Styled background with rounded corners and subtle shadow
+           - Window resize handler to redraw visualization
+
+        3. Process the data by:
+           - Grouping by source/category
+           - Detecting numeric columns automatically
+           - Setting sensible default axes
+           - Handling missing or invalid data
+
+        4. Create scales and axes with:
+           - Appropriate scale types based on data
+           - Padding in domains for visual clarity
+           - Grid lines with configurable opacity
+           - Formatted and styled axis ticks
+
+        5. Implement core visualization elements:
+           - Bars/points/lines with proper attributes
+           - Color scales to differentiate data sources
+           - Rounded corners and stroke styling
+           - Proper spacing between elements
+
+        6. Add basic interactivity:
+           - Detailed tooltips on hover showing all data properties
+           - Highlighting effects with smooth transitions
+           - Click interactions for detailed information
+           - Crosshair guides for precise data reading
+
+        7. Implement advanced interactions:
+           - Zoom functionality with constraints
+           - Brush component for range selection
+           - Reset zoom/brush button
+           - Axis selection dropdowns
+
+        8. Add animations and transitions:
+           - Entrance animations for elements
+           - Staggered animations for sequential effects
+           - Smooth transitions for all updates
+           - Subtle continuous animations (like pulsing)
+
+        9. Create UI components:
+           - Interactive legend for toggling visibility
+           - Dynamic title that updates with selected axes
+           - Axis labels that update dynamically
+           - Controls for changing visualization parameters
+
+        10. Ensure accessibility with:
+            - ARIA attributes for screen readers
+            - Keyboard navigation where appropriate
+            - Appropriate color contrasts
+            - Descriptive labels for interactive elements
+
+        11. Optimize performance by:
+            - Using efficient data binding and updates
+            - Implementing clipping paths
+            - Handling large datasets appropriately
+            - Optimizing animation performance
+
+        12. Handle errors gracefully:
+            - Validating input data
+            - Managing edge cases
+            - Providing fallbacks
+            - Including error messages for debugging
+
+        ## Data Format
+        The data will be an array of objects, where each object represents a data point with properties. The 'source' property indicates which dataset the point comes from.
+
+        ## Example Data
+        ```json
+        [
+          {"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5},
+          {"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8},
+          {"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12},
+          {"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}
+        ]
+        ```
+
+        Your code should be complete, well-commented, and ready to use. Focus on creating a comparative visualization that highlights differences between data sources.
 
         Data Schema:
         {schema_str}
