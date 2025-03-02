@@ -23,8 +23,15 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Define MAX_WORKFLOW_HISTORY constant
-MAX_WORKFLOW_HISTORY = 20
+# Define configuration constants
+MAX_WORKFLOW_HISTORY = int(os.getenv("MAX_WORKFLOW_HISTORY", "10"))
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+INITIAL_RETRY_DELAY = int(os.getenv("INITIAL_RETRY_DELAY", "2"))
+DEFAULT_TEMPERATURE = float(os.getenv("DEFAULT_TEMPERATURE", "0.7"))
+MAX_TEMPERATURE = float(os.getenv("MAX_TEMPERATURE", "1.0"))
+DEFAULT_MAX_TOKENS = int(os.getenv("DEFAULT_MAX_TOKENS", "2048"))
+VISUALIZATION_HEIGHT = int(os.getenv("VISUALIZATION_HEIGHT", "550"))
+D3_VERSION = os.getenv("D3_VERSION", "https://d3js.org/d3.v7.min.js")
 
 # Initialize session state
 if 'workflow_history' not in st.session_state:
@@ -39,6 +46,10 @@ if 'update_viz' not in st.session_state:
     st.session_state.update_viz = False  # Flag to trigger visualization update
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []  # Stores the chat history
+if 'viz_key' not in st.session_state:
+    st.session_state.viz_key = str(uuid.uuid4())  # Unique key for visualization container
+if 'history_index' not in st.session_state:
+    st.session_state.history_index = 0  # Tracks current position in visualization history
 
 # Import OpenAI with version compatibility
 try:
@@ -812,11 +823,11 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <script src="https://d3js.org/d3.v7.min.js"></script>
+            <script src="{D3_VERSION}"></script>
             <style>
                 #visualization {{
                     width: 100%;
-                    height: 550px;
+                    height: {VISUALIZATION_HEIGHT}px;
                     overflow: hidden;
                     margin: 0;
                     padding: 0;
@@ -864,34 +875,71 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         <body>
             <div id="visualization">
                 <!-- Create the SVG element explicitly with dimensions -->
-                <svg id="viz-svg" width="100%" height="100%"></svg>
+                <svg id="viz-svg" width="100%" height="100%" viewBox="0 0 800 {VISUALIZATION_HEIGHT}" preserveAspectRatio="xMidYMid meet"></svg>
             </div>
             
             <script>
                 console.log("Starting visualization render at timestamp: {timestamp}");
                 
+                // Check browser compatibility
+                const checkBrowserCompatibility = function() {{
+                    try {{
+                        // Basic check for ES6 features
+                        eval("const x = () => {{}};");
+                        
+                        // Check if D3 is loaded
+                        if (typeof d3 === 'undefined') {{
+                            return {{
+                                compatible: false,
+                                message: "D3.js failed to load. Please check your internet connection."
+                            }};
+                        }}
+                        
+                        return {{ compatible: true }};
+                    }} catch (e) {{
+                        return {{ 
+                            compatible: false,
+                            message: "Your browser doesn't support modern JavaScript features needed for this visualization."
+                        }};
+                    }}
+                }};
+                
                 // Wait for DOM to be fully loaded
                 document.addEventListener("DOMContentLoaded", function() {{
-                    renderVisualization();
+                    const compatibilityCheck = checkBrowserCompatibility();
+                    if (compatibilityCheck.compatible) {{
+                        renderVisualization();
+                    }} else {{
+                        createFallbackVisualization(compatibilityCheck.message);
+                    }}
                 }});
                 
                 // Fallback if DOMContentLoaded already fired
                 if (document.readyState === "complete" || document.readyState === "interactive") {{
-                    setTimeout(renderVisualization, 100);
+                    setTimeout(() => {{
+                        const compatibilityCheck = checkBrowserCompatibility();
+                        if (compatibilityCheck.compatible) {{
+                            renderVisualization();
+                        }} else {{
+                            createFallbackVisualization(compatibilityCheck.message);
+                        }}
+                    }}, 100);
                 }}
                 
                 // Safe D3 methods that wrap common operations with error handling
-                const safeD3 = {{
+                window.safeD3 = {{
                     // Safe scale creation that handles missing/invalid domains
                     createLinearScale: function(domain, range) {{
                         try {{
                             // Use default domain if missing or invalid
-                            const safeDomain = (Array.isArray(domain) && domain.length === 2) 
+                            const safeDomain = (Array.isArray(domain) && domain.length === 2 && 
+                                               !isNaN(domain[0]) && !isNaN(domain[1])) 
                                 ? domain 
                                 : [0, 100];
                             
                             // Use default range if missing or invalid
-                            const safeRange = (Array.isArray(range) && range.length === 2)
+                            const safeRange = (Array.isArray(range) && range.length === 2 &&
+                                              !isNaN(range[0]) && !isNaN(range[1]))
                                 ? range
                                 : [0, 500];
                                 
@@ -902,34 +950,78 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                         }}
                     }},
                     
-                    // Safe axis creation that handles invalid scales
-                    createAxis: function(scaleOrType, tickCount = 5) {{
+                    // Create any scale type with error handling
+                    createScale: function(type, domain, range) {{
                         try {{
-                            let axis;
-                            
-                            // Handle both direct scale objects and axis type strings
-                            if (typeof scaleOrType === 'function') {{
-                                // It's a scale
-                                axis = d3.axisBottom(scaleOrType);
-                            }} else if (typeof scaleOrType === 'string') {{
-                                // It's a type string
-                                const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                                
-                                switch(scaleOrType) {{
-                                    case 'bottom': axis = d3.axisBottom(scale); break;
-                                    case 'left': axis = d3.axisLeft(scale); break;
-                                    case 'right': axis = d3.axisRight(scale); break;
-                                    case 'top': axis = d3.axisTop(scale); break;
-                                    default: axis = d3.axisBottom(scale);
-                                }}
-                            }} else {{
-                                // Neither - create a default
-                                const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                                axis = d3.axisBottom(scale);
+                            const scaleFunc = d3["scale" + type.charAt(0).toUpperCase() + type.slice(1)];
+                            if (typeof scaleFunc !== 'function') {{
+                                console.warn(`Scale type '${{type}}' not recognized, using linear`);
+                                return this.createLinearScale(domain, range);
                             }}
                             
-                            // Always set a safe tick count
-                            return axis.ticks(tickCount);
+                            // Create and configure the scale
+                            const scale = scaleFunc();
+                            
+                            // Handle different scale types that might have different config methods
+                            if (typeof scale.domain === 'function') {{
+                                if (Array.isArray(domain)) scale.domain(domain);
+                            }}
+                            
+                            if (typeof scale.range === 'function') {{
+                                if (Array.isArray(range)) scale.range(range);
+                            }}
+                            
+                            return scale;
+                        }} catch (e) {{
+                            console.warn(`Error creating ${{type}} scale:`, e);
+                            return this.createLinearScale(
+                                Array.isArray(domain) ? domain : [0, 100],
+                                Array.isArray(range) ? range : [0, 500]
+                            );
+                        }}
+                    }},
+                    
+                    // Safe axis creation that handles invalid scales
+                    createAxis: function(scaleOrType, orientation = 'bottom', tickCount = 5) {{
+                        try {{
+                            let axis;
+                            let scale;
+                            
+                            // Handle different input types
+                            if (typeof scaleOrType === 'function') {{
+                                // It's a scale
+                                scale = scaleOrType;
+                            }} else if (typeof scaleOrType === 'string') {{
+                                // If it's a type string, create a default scale of that type
+                                scale = this.createScale(scaleOrType, [0, 100], [0, 500]);
+                            }} else {{
+                                // Neither - create a default linear scale
+                                scale = this.createLinearScale([0, 100], [0, 500]);
+                            }}
+                            
+                            // Determine which axis function to use
+                            let axisFunc;
+                            switch(orientation) {{
+                                case 'bottom': axisFunc = d3.axisBottom; break;
+                                case 'left': axisFunc = d3.axisLeft; break;
+                                case 'right': axisFunc = d3.axisRight; break;
+                                case 'top': axisFunc = d3.axisTop; break;
+                                default: axisFunc = d3.axisBottom;
+                            }}
+                            
+                            // Create the axis
+                            axis = axisFunc(scale);
+                            
+                            // Set tick count safely
+                            try {{
+                                if (Number.isInteger(tickCount) && tickCount > 0) {{
+                                    axis.ticks(tickCount);
+                                }}
+                            }} catch (tickError) {{
+                                console.warn("Error setting tick count:", tickError);
+                            }}
+                            
+                            return axis;
                         }} catch (e) {{
                             console.warn("Error creating axis:", e);
                             // Return a minimal working axis as fallback
@@ -942,6 +1034,38 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                     getValue: function(d, property, defaultValue = 0) {{
                         if (!d) return defaultValue;
                         return d[property] !== undefined ? d[property] : defaultValue;
+                    }},
+                    
+                    // Safe selection method
+                    select: function(selector, parent = document) {{
+                        try {{
+                            const selection = (parent.querySelector ? parent : d3.select(parent)).querySelector(selector);
+                            return selection ? d3.select(selection) : null;
+                        }} catch (e) {{
+                            console.warn(`Error selecting '${{selector}}':`, e);
+                            return null;
+                        }}
+                    }},
+                    
+                    // Safe data binding
+                    bindData: function(selection, data) {{
+                        try {{
+                            if (!selection) return null;
+                            return selection.data(Array.isArray(data) ? data : []);
+                        }} catch (e) {{
+                            console.warn("Error binding data:", e);
+                            return selection;
+                        }}
+                    }}
+                }};
+                
+                // General purpose D3 operation wrapper
+                window.d3safe = function(operation, fallback) {{
+                    try {{
+                        return operation();
+                    }} catch (e) {{
+                        console.error("D3 operation failed:", e);
+                        return fallback;
                     }}
                 }};
                 
@@ -1048,7 +1172,9 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                                     
                                     // Check for common D3 errors and provide helpful messages
                                     let errorMessage = d3Error.message;
-                                    if (d3Error.message.includes("ticks") || d3Error.message.includes("undefined")) {{
+                                    if (d3Error.message.includes("ticks") || 
+                                        d3Error.message.includes("undefined") ||
+                                        d3Error.message.includes("null")) {{
                                         errorMessage = "Error with visualization data: The visualization couldn't be created with this data. Try a different request.";
                                     }}
                                     
@@ -1081,23 +1207,25 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         </html>
         """
         
-        # Render in the appropriate place
+        # Render in the appropriate place with proper height and key
         if placeholder is not None:
             # When using a placeholder, create a container inside it
             with placeholder.container():
                 # Use components.html inside the container
                 components.html(
                     html_content,
-                    height=600,
-                    scrolling=True
+                    height=VISUALIZATION_HEIGHT + 50,  # Add some padding
+                    scrolling=True,
+                    key=f"viz_{st.session_state.viz_key}_{timestamp}"
                 )
                 logger.info("Visualization displayed in provided placeholder")
         else:
             # Use components.html to display the visualization in the current position
             components.html(
                 html_content,
-                height=600,
-                scrolling=True
+                height=VISUALIZATION_HEIGHT + 50,  # Add some padding
+                scrolling=True,
+                key=f"viz_{st.session_state.viz_key}_{timestamp}"
             )
             logger.info("Visualization displayed in current position")
         
@@ -1158,12 +1286,21 @@ def main():
     if 'update_viz' not in st.session_state:
         st.session_state.update_viz = False
     
-    # Create visualization containers - defining these outside the file check
-    # ensures they remain stable even as the UI updates
-    viz_header = st.empty()  # Header container
-    viz_status = st.empty()  # For showing viz status
-    viz_caption = st.empty()  # For showing viz description
-    viz_container = st.empty()  # The main visualization container
+    # Store container references in session state for stability across reruns
+    if 'viz_header' not in st.session_state:
+        st.session_state.viz_header = st.empty()
+    if 'viz_status' not in st.session_state:
+        st.session_state.viz_status = st.empty()
+    if 'viz_caption' not in st.session_state:
+        st.session_state.viz_caption = st.empty()
+    if 'viz_container' not in st.session_state:
+        st.session_state.viz_container = st.empty()
+    
+    # Get container references from session state
+    viz_header = st.session_state.viz_header
+    viz_status = st.session_state.viz_status
+    viz_caption = st.session_state.viz_caption
+    viz_container = st.session_state.viz_container
     
     # Display model information in a less prominent place if needed
     model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
@@ -1171,9 +1308,9 @@ def main():
     st.header("Upload CSV Files")
     col1, col2 = st.columns(2)
     with col1:
-        file1 = st.file_uploader("Upload first CSV file", type="csv")
+        file1 = st.file_uploader("Upload first CSV file", type="csv", key="file1_uploader")
     with col2:
-        file2 = st.file_uploader("Upload second CSV file", type="csv")
+        file2 = st.file_uploader("Upload second CSV file", type="csv", key="file2_uploader")
 
     # Show informational message when no files are uploaded
     if not file1 or not file2:
@@ -1200,6 +1337,7 @@ def main():
             st.session_state.current_viz = None
             st.session_state.preprocessed_df = None
             st.session_state.json_data = None
+            st.session_state.history_index = 0
         
         return  # Exit early if files not uploaded
 
@@ -1222,24 +1360,31 @@ def main():
         if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
             viz_status.info("Generating initial visualization...")
             
-            with st.spinner("Generating initial D3 visualization..."):
-                d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
-                st.session_state.current_viz = d3_code
-                st.session_state.workflow_history.append({
-                    "version": len(st.session_state.workflow_history) + 1,
-                    "request": "Initial comparative visualization",
-                    "code": d3_code
-                })
-            
-            viz_status.success("Initial visualization generated!")
-            viz_caption.caption("Initial visualization based on data structure")
-            
-            # Clear the container before rendering
-            with viz_container.container():
-                st.empty()
-            
-            # Display the current visualization in the container
-            display_visualization(st.session_state.current_viz, viz_container)
+            try:
+                with st.spinner("Generating initial D3 visualization..."):
+                    d3_code = generate_and_validate_d3_code(st.session_state.preprocessed_df, api_key)
+                    st.session_state.current_viz = d3_code
+                    st.session_state.workflow_history.append({
+                        "version": len(st.session_state.workflow_history) + 1,
+                        "request": "Initial comparative visualization",
+                        "code": d3_code,
+                        "timestamp": time.time()
+                    })
+                    st.session_state.history_index = len(st.session_state.workflow_history) - 1
+                
+                viz_status.success("Initial visualization generated!")
+                viz_caption.caption("Initial visualization based on data structure")
+                
+                # Clear the container before rendering
+                with viz_container.container():
+                    st.empty()
+                
+                # Display the current visualization in the container
+                display_visualization(st.session_state.current_viz, viz_container)
+            except Exception as e:
+                viz_status.error(f"Error generating visualization: {str(e)}")
+                logger.error(f"Error in initial visualization: {str(e)}")
+                logger.error(traceback.format_exc())
         else:
             # Display existing visualization
             viz_caption.caption("Current visualization")
@@ -1256,11 +1401,17 @@ def main():
         st.subheader("Modify Visualization")
         user_input = st.text_area("Enter your visualization request:", 
                                   height=100,
+                                  key="user_input",
                                   help="Describe what changes you want to make to the visualization")
         
-        update_col1, update_col2 = st.columns([3, 1])
-        with update_col1:
-            update_button = st.button("🔄 Update Visualization", use_container_width=True, type="primary")
+        col_controls, col_spacer = st.columns([2, 2])
+        with col_controls:
+            update_col1, update_col2 = st.columns([3, 1])
+            with update_col1:
+                update_button = st.button("🔄 Update Visualization", 
+                                          use_container_width=True, 
+                                          type="primary",
+                                          key="update_button")
         
         if update_button:
             if not user_input.strip():
@@ -1301,12 +1452,19 @@ def main():
                         # Step 2: Update the session state
                         st.session_state.current_viz = new_d3_code
                         
+                        # Limit the history to MAX_WORKFLOW_HISTORY entries
+                        if len(st.session_state.workflow_history) >= MAX_WORKFLOW_HISTORY:
+                            # Remove oldest item (first item)
+                            st.session_state.workflow_history = st.session_state.workflow_history[1:]
+                        
                         # Add to history
                         st.session_state.workflow_history.append({
                             "version": len(st.session_state.workflow_history) + 1,
                             "request": user_input,
-                            "code": new_d3_code
+                            "code": new_d3_code,
+                            "timestamp": time.time()
                         })
+                        st.session_state.history_index = len(st.session_state.workflow_history) - 1
                         
                         # Update the status and caption
                         viz_status.success("Visualization updated successfully!")
@@ -1336,42 +1494,160 @@ def main():
                     logger.error(f"Error in visualization update flow: {str(e)}")
                     logger.error(traceback.format_exc())
 
-        # Code editor section
-        with st.expander("View/Edit Visualization Code"):
-            code_editor = st.text_area("D3.js Code", value=st.session_state.current_viz, height=300, key="code_editor")
+        # Display code editor and history navigation using helper functions
+        display_code_editor(st.session_state.current_viz, viz_container, viz_status, viz_caption)
+        display_history_navigation(st.session_state.workflow_history, viz_container, viz_status, viz_caption)
+        
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logger.error(f"Error in main app flow: {str(e)}")
+        logger.error(traceback.format_exc())
+
+def display_code_editor(code, viz_container, viz_status, viz_caption):
+    """
+    Display a code editor with syntax highlighting for D3.js code.
+    
+    Args:
+        code (str): The D3.js code to display in the editor.
+        viz_container: The container to display the visualization in.
+        viz_status: The container to display status messages in.
+        viz_caption: The container to display captions in.
+    
+    Returns:
+        str: The edited code if changes were made, or the original code if no changes were made.
+    """
+    with st.expander("View/Edit Visualization Code"):
+        # Create tabs for different editor views
+        code_tab, help_tab = st.tabs(["Code Editor", "Help & Tips"])
+        
+        with code_tab:
+            # Add syntax highlighting using HTML components
+            st.markdown("""
+            <style>
+            .js-editor {
+                font-family: monospace;
+                background-color: #f5f5f5;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                padding: 10px;
+                margin-bottom: 10px;
+                overflow: auto;
+                height: 300px;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Create the code editor
+            code_editor = st.text_area(
+                "D3.js Code", 
+                value=code, 
+                height=300, 
+                key="code_editor"
+            )
+            
             col1, col2, col3 = st.columns([1,1,2])
             with col1:
-                edit_enabled = st.toggle("Edit", key="edit_toggle")
+                edit_enabled = st.toggle("Edit Mode", key="edit_toggle")
             with col2:
-                if st.button("Execute Code"):
+                if st.button("Apply Changes", key="execute_code_button", disabled=not edit_enabled):
                     if edit_enabled:
                         if validate_d3_code(code_editor):
+                            # Update the session state
                             st.session_state.current_viz = code_editor
+                            
+                            # Limit the history to MAX_WORKFLOW_HISTORY entries
+                            if len(st.session_state.workflow_history) >= MAX_WORKFLOW_HISTORY:
+                                # Remove oldest item (first item)
+                                st.session_state.workflow_history = st.session_state.workflow_history[1:]
+                                
+                            # Add to history
                             st.session_state.workflow_history.append({
                                 "version": len(st.session_state.workflow_history) + 1,
                                 "request": "Manual code edit",
-                                "code": code_editor
+                                "code": code_editor,
+                                "timestamp": time.time()
                             })
+                            st.session_state.history_index = len(st.session_state.workflow_history) - 1
+                            
+                            # Update UI
                             viz_caption.caption("Manual code edit")
                             
                             # Clear the container before rendering
                             with viz_container.container():
                                 st.empty()
                                 
+                            # Display the updated visualization
                             display_visualization(code_editor, viz_container)
                             viz_status.success("Manual code applied successfully!")
+                            
+                            return code_editor
                         else:
                             viz_status.error("Invalid code. Please check and try again.")
                     else:
                         viz_status.error("Please enable edit mode to modify code.")
         
-        # Visualization history
-        with st.expander("Visualization History"):
-            if st.session_state.workflow_history:
-                for idx, item in enumerate(reversed(st.session_state.workflow_history)):
+        with help_tab:
+            st.markdown("""
+            ### D3.js Code Editing Tips
+            
+            1. **Function Structure**: Always keep the `createVisualization(data, svgElement)` function structure.
+            
+            2. **Safety Utilities**: Use these helper functions for robust code:
+               - `window.safeD3.createScale(type, domain, range)` - Creates scales safely
+               - `window.safeD3.createAxis(scale, orientation, ticks)` - Creates axes safely
+               - `window.safeD3.getValue(dataPoint, property, defaultValue)` - Gets values safely
+            
+            3. **Error Handling**: Wrap risky operations in try/catch blocks:
+               ```javascript
+               try {
+                 // Your D3 code here
+               } catch (error) {
+                 console.error("Error:", error);
+               }
+               ```
+            
+            4. **SVG Elements**: Always append elements to `svgElement`, not to a global selector.
+            
+            5. **Data Validation**: Always validate data before using it:
+               ```javascript
+               if (!data || !Array.isArray(data) || data.length === 0) {
+                 console.error("Invalid data");
+                 return;
+               }
+               ```
+            """)
+    
+    return code
+
+def display_history_navigation(workflow_history, viz_container, viz_status, viz_caption):
+    """
+    Display a history navigation interface for previous visualizations.
+    
+    Args:
+        workflow_history (list): The history of visualizations.
+        viz_container: The container to display the visualization in.
+        viz_status: The container to display status messages in.
+        viz_caption: The container to display captions in.
+    """
+    with st.expander("Visualization History"):
+        if workflow_history:
+            # Create a layout for history items
+            history_cols = st.columns(min(3, len(workflow_history)))
+            
+            for idx, item in enumerate(reversed(workflow_history)):
+                col_idx = idx % len(history_cols)
+                
+                with history_cols[col_idx]:
                     st.markdown(f"**Version {item['version']}**: {item['request']}")
+                    
+                    # Display timestamp if available
+                    if 'timestamp' in item:
+                        timestamp_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(item['timestamp']))
+                        st.caption(f"Created: {timestamp_str}")
+                    
                     if st.button(f"Restore Version {item['version']}", key=f"restore_{idx}"):
                         st.session_state.current_viz = item['code']
+                        st.session_state.history_index = len(workflow_history) - 1 - idx
                         viz_caption.caption(f"Restored from version {item['version']}: {item['request']}")
                         
                         # Clear the container before rendering
@@ -1379,12 +1655,12 @@ def main():
                             st.empty()
                             
                         display_visualization(item['code'], viz_container)
-            else:
-                st.info("No visualization history yet.")
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        logger.error(f"Error in main app flow: {str(e)}")
-        logger.error(traceback.format_exc())
+                        viz_status.success(f"Restored version {item['version']}")
+                    
+                    # Add a separator between history items
+                    st.markdown("---")
+        else:
+            st.info("No visualization history yet.")
 
 def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     """
@@ -1416,8 +1692,52 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     
     # Get model and parameters
     model = os.getenv("DEFAULT_MODEL", "gpt-4")
-    max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
-    temperature = float(os.getenv("TEMPERATURE", "0.9"))  # Higher temperature for more variability
+    max_tokens = DEFAULT_MAX_TOKENS
+    temperature = DEFAULT_TEMPERATURE * 1.2  # Higher temperature for more variability
+    
+    # JavaScript utility code examples provided separately to avoid f-string conflicts
+    js_utility_examples = """```javascript
+// Create scales safely
+const xScale = window.safeD3.createScale('linear', [0, d3.max(data, d => d.value) || 100], [0, width]);
+
+// Create axes safely
+const xAxis = window.safeD3.createAxis(xScale, 'bottom', 5);
+
+// Get values safely from data points
+const getValue = (d, property) => window.safeD3.getValue(d, property, 0);
+
+// Select elements safely
+const group = window.safeD3.select('#group', svgElement);
+
+// Safely bind data
+const bars = window.safeD3.bindData(group.selectAll('rect'), data);
+
+// Wrap any risky D3 operations
+const result = window.d3safe(() => d3.complexOperation(), fallbackValue);
+```"""
+
+    js_ticks_error_prevention = """```javascript
+// ALWAYS check scales have valid domains before creating axes
+function createSafeAxis(scale, orientation) {
+  try {
+    // Test if domain values are valid numbers  
+    const domain = scale.domain();
+    const validDomain = domain.every(d => d !== undefined && !isNaN(d));
+    
+    if (!validDomain) {
+      // Fix invalid domain before creating axis
+      scale.domain([0, 100]);
+    }
+    
+    // Now create axis with valid scale
+    return d3["axis" + orientation.charAt(0).toUpperCase() + orientation.slice(1)](scale);
+  } catch (e) {
+    console.error("Error creating axis:", e);
+    // Fallback to a guaranteed working axis
+    return d3.axisBottom(d3.scaleLinear().domain([0, 100]).range([0, 500]));
+  }
+}
+```"""
     
     # Create a prompt that explicitly requests significant changes
     prompt = f"""
@@ -1445,48 +1765,55 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     1. Create a COMPLETELY DIFFERENT visualization that fulfills the user request
        - IMPORTANT: The svgElement parameter is a D3 selection, not a raw DOM element
        - Always use svgElement.append() instead of d3.select("svg").append()
-       - You can use window.safeD3 for safer scale and axis creation
        
-    2. Do NOT return code similar to the current code
+    2. Do NOT return code similar to the current code - change:
+       - Visualization type (e.g., from bar chart to line chart)
+       - Color scheme
+       - Layout and proportions
+       - Animation/transition effects
+       - Data mapping approach
     
-    3. Change the visualization type, layout, or core approach
-    
-    4. Implement responsive design:
+    3. Implement responsive design:
        - Get container dimensions from svgElement using .attr("width") and .attr("height")
        - Use viewBox for SVG scaling
        - Adapt the visualization to the container size
     
-    5. Add detailed comments explaining your visualization logic
-    
-    6. Implement basic error handling:
+    4. Error handling is critical:
        - Check for data existence before using it
-       - Provide sensible fallbacks when needed
+       - Provide sensible fallbacks for missing data
+       - Handle empty arrays and undefined values
     
-    ## SPECIAL HELPER METHODS
-    You can use these helper methods in your code for more robust visualizations:
+    ## USE THESE SAFETY UTILITIES FOR ROBUST VISUALIZATIONS
+    Always use these utility functions to prevent common D3 errors:
     
-    - window.safeD3.createLinearScale(domain, range) - Creates a scale with fallbacks
-    - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
-    - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
+    {js_utility_examples}
     
-    ## OUTPUT RULES (CRITICALLY IMPORTANT):
+    ## ERROR PREVENTION FOR "TICKS" ISSUE
+    To prevent the common "ticks" error:
+    
+    {js_ticks_error_prevention}
+    
+    ## OUTPUT REQUIREMENTS:
     - The code MUST start with 'function createVisualization(data, svgElement) {{'
-    - Return ONLY the complete JavaScript code
-    - DO NOT include ANY explanatory text, markdown, or code block formatting
-    - DO NOT include any comments or descriptions outside the code itself
-    - DO NOT include text like "Here is the code" or "The code creates..."
-    - NEVER include any commentary after the closing brace of the function
+    - The function MUST perform data validation before using the data
+    - Return ONLY the complete JavaScript code - no explanatory text
+    - Include detailed, helpful comments within the code
+    - Ensure all visual elements are contained within the svgElement
+    - Add error handlers around any code that might throw exceptions
     """
     
     logger.info("Using forced change prompt due to identical code generation")
     
     try:
         # Implement retry mechanism for API calls
-        max_retries = 3
-        retry_delay = 2
+        max_retries = MAX_RETRIES
+        retry_delay = INITIAL_RETRY_DELAY
         
         for attempt in range(max_retries):
             try:
+                # Increase temperature with each attempt
+                current_temperature = min(MAX_TEMPERATURE, temperature + (attempt * 0.1))
+                
                 # Call API based on version
                 if OPENAI_API_VERSION == "v1":
                     response = client.chat.completions.create(
@@ -1498,7 +1825,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                             "role": "user",
                             "content": prompt
                         }],
-                        temperature=temperature,
+                        temperature=current_temperature,
                         max_tokens=max_tokens
                     )
                     d3_code = response.choices[0].message.content.strip()
@@ -1512,13 +1839,13 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                             "role": "user",
                             "content": prompt
                         }],
-                        temperature=temperature,
+                        temperature=current_temperature,
                         max_tokens=max_tokens
                     )
                     d3_code = response.choices[0].message.content.strip()
                 
                 d3_code = clean_d3_response(d3_code)
-                logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
+                logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters, temperature: {current_temperature}")
                 
                 # Extra validation to ensure there's no trailing text
                 if "```" in d3_code or "Here is" in d3_code or "The code" in d3_code:
@@ -1527,9 +1854,12 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                 
                 # Verify the new code is actually different
                 if d3_code.strip() == current_code.strip():
-                    logger.warning("Generated code is still identical, retrying with higher temperature")
-                    temperature += 0.1  # Increase temperature for more variability
+                    logger.warning(f"Generated code is still identical (attempt {attempt+1}/{max_retries}), retrying with higher temperature")
                     continue
+                
+                # Check if the code includes safeD3 utilities
+                if "window.safeD3" not in d3_code and "safeD3" not in d3_code and "d3safe" not in d3_code:
+                    logger.warning("Generated code doesn't use safety utilities, but continuing anyway")
                 
                 return d3_code
                 
@@ -1540,19 +1870,88 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                     retry_delay *= 2  # Exponential backoff
                 else:
                     logger.error("Rate limit exceeded after maximum retries")
-                    return current_code
+                    # Return a modified version of the current code
+                    return add_safety_wrappers_to_code(current_code)
             except Exception as e:
-                logger.error(f"Error in forced code generation: {str(e)}")
+                logger.error(f"Error in forced code generation (attempt {attempt+1}): {str(e)}")
                 logger.error(traceback.format_exc())
+                # If we're on the last attempt, try one more approach
+                if attempt == max_retries - 1:
+                    logger.warning("Trying last-resort approach to modify code")
+                    return add_safety_wrappers_to_code(current_code)
                 break
         
-        # If all attempts failed, return current code with a warning message
+        # If all attempts failed, return current code with safety modifications
         logger.error("Failed to generate different code after multiple attempts")
-        return current_code
+        return add_safety_wrappers_to_code(current_code)
     except Exception as e:
         logger.error(f"Error in forced code generation: {str(e)}")
         logger.error(traceback.format_exc())
         return current_code
+
+def add_safety_wrappers_to_code(code):
+    """
+    Add safety wrappers to existing D3 code as a last resort when generation fails.
+    
+    Args:
+        code (str): The current D3.js code
+        
+    Returns:
+        str: Modified code with safety wrappers
+    """
+    logger.info("Adding safety wrappers to existing code")
+    
+    # Check if the code already has error handling
+    if "try {" in code and "catch" in code:
+        logger.info("Code already has try/catch blocks, making minimal changes")
+        
+        # Simple find and replace operations to make it more robust
+        safer_code = code.replace("d3.scaleLinear()", "window.safeD3.createLinearScale([0, 100], [0, 500])")
+        safer_code = safer_code.replace("d3.axisBottom(", "window.safeD3.createAxis(")
+        safer_code = safer_code.replace("d3.axisLeft(", "window.safeD3.createAxis(")
+        
+        return safer_code
+    
+    # More extensive modification - wrap the main visualization logic in try/catch
+    function_header = "function createVisualization(data, svgElement) {"
+    
+    if function_header in code:
+        start_idx = code.index(function_header) + len(function_header)
+        
+        # Split the code into header and body
+        header = code[:start_idx]
+        body = code[start_idx:]
+        
+        # Add data validation and wrap body in try/catch
+        safer_code = f"""{header}
+  // Data validation
+  if (!data || !Array.isArray(data) || data.length === 0) {{
+    console.error("Invalid or empty data provided");
+    data = [{{value: 50}}, {{value: 30}}, {{value: 70}}]; // Fallback data
+  }}
+  
+  try {{
+    // Get dimensions from the SVG element
+    const width = parseInt(svgElement.attr("width")) || 800;
+    const height = parseInt(svgElement.attr("height")) || 500;
+    const margin = {{top: 40, right: 40, bottom: 60, left: 60}};
+    
+{body.strip()}
+  }} catch (error) {{
+    console.error("Error in visualization:", error);
+    // Create a simple fallback visualization
+    svgElement.selectAll("*").remove();
+    svgElement.append("text")
+      .attr("x", 100)
+      .attr("y", 100)
+      .text("Visualization error: " + error.message)
+      .style("fill", "red");
+  }}
+}}"""
+        return safer_code
+    
+    # If we couldn't find the function header, return the original code
+    return code
 
 if __name__ == "__main__":
     main()
