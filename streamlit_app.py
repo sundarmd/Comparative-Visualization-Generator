@@ -8,9 +8,11 @@ import traceback
 from typing import Optional, Dict, List
 import re
 import urllib.parse
-from streamlit import components
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 import time
+import tempfile
+from pathlib import Path
 
 # Load environment variables from .env file
 load_dotenv()
@@ -1030,7 +1032,7 @@ def clean_d3_response(response: str) -> str:
 
 def display_visualization(d3_code: str) -> None:
     """
-    Display the D3.js visualization in the Streamlit app with forced refresh.
+    Display the D3.js visualization in the Streamlit app using iframe.
     
     Args:
         d3_code (str): The D3.js code to display.
@@ -1048,6 +1050,14 @@ def display_visualization(d3_code: str) -> None:
         <script src="https://unpkg.com/d3-simple-slider"></script>
         <script src="https://cdn.jsdelivr.net/npm/d3-legend@2.25.6/d3-legend.min.js"></script>
         <style>
+            body, html {{
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }}
+            
             #visualization {{
                 width: 100%;
                 height: 100%;
@@ -1121,15 +1131,23 @@ def display_visualization(d3_code: str) -> None:
     </html>
     """
     
-    # Display the HTML content in an iframe with a unique URL to prevent caching
-    html_file = f"visualization_{timestamp}.html"
+    # Create a temporary directory if it doesn't exist
+    static_dir = Path(tempfile.gettempdir()) / "streamlit_viz"
+    static_dir.mkdir(exist_ok=True)
     
-    # Use components.html to display the HTML content
-    # The height parameter ensures the visualization is fully visible
-    components.html(html_content, height=600, scrolling=True)
+    # Create a temporary HTML file
+    viz_path = static_dir / f"visualization_{timestamp}.html"
+    with open(viz_path, "w") as f:
+        f.write(html_content)
+    
+    # Get the file URL
+    file_url = f"file://{viz_path}"
+    
+    # Use iframe to display the HTML file
+    components.iframe(file_url, height=600, scrolling=True)
     
     # Log that visualization was displayed
-    logger.info(f"Visualization displayed with timestamp: {timestamp}")
+    logger.info(f"Visualization displayed with iframe from: {file_url}")
 
 def generate_fallback_visualization() -> str:
     """
