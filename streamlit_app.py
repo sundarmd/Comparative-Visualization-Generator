@@ -865,11 +865,14 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         
         # Render in the appropriate place
         if placeholder is not None:
-            placeholder.html(
-                html_content,
-                height=600,
-                scrolling=True
-            )
+            # When using a placeholder, we need to use the correct method
+            with placeholder.container():
+                # Use components.html inside the placeholder's container
+                components.html(
+                    html_content,
+                    height=600,
+                    scrolling=True
+                )
         else:
             # Use components.html to display the visualization with proper height
             components.html(
@@ -944,6 +947,13 @@ def main():
     if 'update_viz' not in st.session_state:
         st.session_state.update_viz = False
 
+    # Create visualization containers - defining these outside the file check
+    # ensures they remain stable even as the UI updates
+    viz_header = st.empty()  # Header container
+    viz_status = st.empty()  # For showing viz status
+    viz_caption = st.empty()  # For showing viz description
+    viz_container = st.empty()  # The main visualization container
+
     if file1 and file2:
         try:
             if 'preprocessed_df' not in st.session_state or st.session_state.preprocessed_df is None:
@@ -957,11 +967,8 @@ def main():
             with st.expander("Preview of preprocessed data"):
                 st.dataframe(st.session_state.preprocessed_df.head())
             
-            # Create visualization title and container
-            st.subheader("Visualization")
-            viz_status = st.empty()  # For showing viz status
-            viz_caption = st.empty()  # For showing viz description
-            viz_container = st.empty()  # The main visualization container
+            # Show the visualization header
+            viz_header.subheader("Visualization")
             
             # Generate initial visualization if needed
             if 'current_viz' not in st.session_state or st.session_state.current_viz is None:
@@ -977,6 +984,10 @@ def main():
                 viz_status.empty()
                 viz_caption.caption("Initial visualization based on data structure")
             
+            # Clear the container before rendering to avoid stacking issues
+            with viz_container.container():
+                st.empty()
+                
             # Display the current visualization in the container
             display_visualization(st.session_state.current_viz, viz_container)
 
@@ -1041,6 +1052,10 @@ def main():
                             viz_status.success("Visualization updated successfully!")
                             viz_caption.caption(f"Based on your request: '{user_input}'")
                             
+                            # Clear the container before rendering to avoid stacking issues
+                            with viz_container.container():
+                                st.empty()
+                                
                             # Step 3: Display the updated visualization in the same container
                             display_visualization(new_d3_code, viz_container)
                             
@@ -1078,6 +1093,11 @@ def main():
                                     "code": code_editor
                                 })
                                 viz_caption.caption("Manual code edit")
+                                
+                                # Clear the container before rendering
+                                with viz_container.container():
+                                    st.empty()
+                                    
                                 display_visualization(code_editor, viz_container)
                                 viz_status.success("Manual code applied successfully!")
                             else:
@@ -1093,6 +1113,11 @@ def main():
                         if st.button(f"Restore Version {item['version']}", key=f"restore_{idx}"):
                             st.session_state.current_viz = item['code']
                             viz_caption.caption(f"Restored from version {item['version']}: {item['request']}")
+                            
+                            # Clear the container before rendering
+                            with viz_container.container():
+                                st.empty()
+                                
                             display_visualization(item['code'], viz_container)
                             viz_status.success(f"Restored visualization from version {item['version']}")
                 else:
@@ -1104,6 +1129,11 @@ def main():
             logger.error(traceback.format_exc())
     else:
         # Show instructions when no files are uploaded
+        viz_header.empty()  # Clear the visualization header
+        viz_status.empty()  # Clear any status messages
+        viz_caption.empty()  # Clear any captions
+        viz_container.empty()  # Clear the visualization container
+        
         st.info("📊 Please upload both CSV files to generate a visualization")
         st.markdown("""
         ### How to use this app:
