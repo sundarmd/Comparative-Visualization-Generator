@@ -88,10 +88,9 @@ def get_api_key() -> Optional[str]:
     This function attempts to get the OpenAI API key from:
     1. Environment variables (loaded from .env file)
     2. Streamlit secrets
-    3. User input via sidebar
     
     Returns:
-        Optional[str]: The API key if found or entered, None otherwise.
+        Optional[str]: The API key if found, None otherwise.
     """
     # First try to get from environment variables (from .env file)
     api_key = os.getenv("OPENAI_API_KEY")
@@ -100,11 +99,12 @@ def get_api_key() -> Optional[str]:
     if not api_key:
         api_key = st.secrets.get("OPENAI_API_KEY")
     
-    # If still not found, prompt the user
+    # If still not found, show an error message
     if not api_key:
-        api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
-        if api_key:
-            st.sidebar.success("API key received successfully! 🎉")
+        st.error("OpenAI API key not found. Please add it to your .env file or Streamlit secrets.")
+        st.info("Create a .env file in the root directory with the following content:")
+        st.code("OPENAI_API_KEY=your_api_key_here")
+        st.stop()  # Stop the app execution
     
     return api_key
 
@@ -624,7 +624,12 @@ def main():
     st.set_page_config(page_title="🎨 Comparative Visualization Generator", page_icon="✨", layout="wide")
     st.title("🎨 Comparative Visualization Generator")
 
+    # Get API key from environment or secrets
     api_key = get_api_key()
+    
+    # Display model information
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    st.sidebar.info(f"Using model: {model}")
 
     st.header("Upload CSV Files")
     col1, col2 = st.columns(2)
