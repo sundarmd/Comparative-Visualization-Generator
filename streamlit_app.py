@@ -196,32 +196,708 @@ def preprocess_data(file1, file2) -> pd.DataFrame:
         logger.error(f"Error in data preprocessing: {str(e)}")
         raise
 
-def validate_d3_code(code: str) -> bool:
+def validate_d3_code(code: str) -> dict:
     """
-    Perform basic validation on the generated D3 code.
+    Perform comprehensive validation on the generated D3 code.
     
-    This function checks for the presence of key D3.js elements and syntax.
+    This function checks for the presence of key D3.js elements, features, and best practices.
+    It returns a detailed report of what features are present and what might be missing.
     
     Args:
         code (str): The D3.js code to validate.
     
     Returns:
-        bool: True if the code passes basic validation, False otherwise.
+        dict: Validation results with details on what features are present/missing.
     """
-    # Check if the code defines the createVisualization function
-    if not re.search(r'function\s+createVisualization\s*\(data,\s*svgElement\)\s*{', code):
-        return False
+    # Initialize validation results
+    results = {
+        "valid": True,
+        "missing_features": [],
+        "present_features": [],
+        "balanced_braces": code.count('{') == code.count('}'),
+        "details": {}
+    }
+    
+    # Define feature categories and patterns to check
+    feature_checks = {
+        "Basic Structure": [
+            {"name": "createVisualization function", "pattern": r'function\s+createVisualization\s*\(data,\s*svgElement\)\s*{', "required": True},
+            {"name": "Clear previous content", "pattern": r'svgElement\.selectAll\s*\(\s*["\']\*["\']\s*\)\.remove\s*\(\s*\)', "required": True},
+            {"name": "Configuration object", "pattern": r'const\s+config\s*=\s*\{', "required": True},
+            {"name": "Responsive SVG setup", "pattern": r'viewBox|preserveAspectRatio', "required": True}
+        ],
+        "Layout": [
+            {"name": "Margins configuration", "pattern": r'margin\s*:\s*\{\s*top|bottom|left|right', "required": True},
+            {"name": "Responsive dimensions", "pattern": r'containerWidth|window\.innerWidth|resize', "required": True},
+            {"name": "Background styling", "pattern": r'append\s*\(\s*["\'](rect)["\']\s*\).*fill', "required": False},
+            {"name": "Window resize handler", "pattern": r'window.*resize|resize.*window', "required": True}
+        ],
+        "Data Processing": [
+            {"name": "Data grouping", "pattern": r'd3\.group|group\s*\(|nest\s*\(', "required": False},
+            {"name": "Numeric column detection", "pattern": r'!isNaN|typeof.*number|parseFloat|parseInt', "required": False},
+            {"name": "Default axes selection", "pattern": r'[xy]Key\s*=', "required": True}
+        ],
+        "Scales and Axes": [
+            {"name": "Scale creation", "pattern": r'd3\.scale(Band|Linear|Time|Ordinal|Log)', "required": True},
+            {"name": "Domain padding", "pattern": r'domain\s*\(\s*\[\s*0\s*,\s*.*\*\s*[0-9.]+\s*\]\s*\)', "required": False},
+            {"name": "Grid lines", "pattern": r'tickSize\s*\(\s*-|grid|tick.*line', "required": True},
+            {"name": "Axis formatting", "pattern": r'tickFormat|format\s*\(', "required": False},
+            {"name": "Axis styling", "pattern": r'axis.*selectAll\(.*\)\.attr', "required": True}
+        ],
+        "Visualization Elements": [
+            {"name": "Data binding", "pattern": r'selectAll\s*\(\s*["\']\..*["\']\s*\)\.data\s*\(\s*data\s*\)', "required": True},
+            {"name": "Color scales", "pattern": r'd3\.scheme|scaleOrdinal|colors', "required": True},
+            {"name": "Element styling", "pattern": r'attr\s*\(\s*["\'](fill|stroke|rx|ry)', "required": True},
+            {"name": "Size scaling", "pattern": r'sizeScale|radius|r\s*\(', "required": False}
+        ],
+        "Interactivity": [
+            {"name": "Tooltips", "pattern": r'tooltip|mouseover|mouseout|hover', "required": True},
+            {"name": "Highlighting effects", "pattern": r'brighter|darker|highlight|mouseover.*transition', "required": True},
+            {"name": "Click interactions", "pattern": r'click|onclick', "required": True},
+            {"name": "Crosshair", "pattern": r'crosshair|guideline', "required": False}
+        ],
+        "Advanced Interactions": [
+            {"name": "Zoom functionality", "pattern": r'd3\.zoom|zoom\s*\(', "required": True},
+            {"name": "Brush component", "pattern": r'd3\.brush|brush\s*\(', "required": True},
+            {"name": "Reset button", "pattern": r'reset|clear.*selection', "required": True},
+            {"name": "Axis selection UI", "pattern": r'dropdown|select|option|change.*axis', "required": True}
+        ],
+        "Animations": [
+            {"name": "Entrance animations", "pattern": r'transition\s*\(\s*\).*duration', "required": True},
+            {"name": "Staggered animations", "pattern": r'delay\s*\(\s*\(\s*d\s*,\s*i\s*\)', "required": True},
+            {"name": "Update transitions", "pattern": r'update.*transition|transition.*duration', "required": True},
+            {"name": "Continuous animations", "pattern": r'pulse|loop|timer|interval', "required": False}
+        ],
+        "UI Components": [
+            {"name": "Interactive legend", "pattern": r'legend.*click|toggle.*legend', "required": True},
+            {"name": "Dynamic title", "pattern": r'title.*text\s*\(|chart.*title', "required": True},
+            {"name": "Axis labels", "pattern": r'axis.*label|label.*axis', "required": True},
+            {"name": "UI controls", "pattern": r'dropdown|button|control|select', "required": True}
+        ],
+        "Accessibility": [
+            {"name": "ARIA attributes", "pattern": r'aria-|role=', "required": True},
+            {"name": "Keyboard navigation", "pattern": r'keydown|keyup|keypress', "required": False}
+        ],
+        "Performance": [
+            {"name": "Clip path", "pattern": r'clipPath|clip-path', "required": True},
+            {"name": "Efficient updates", "pattern": r'update.*bars|update.*visualization', "required": True}
+        ],
+        "Error Handling": [
+            {"name": "Data validation", "pattern": r'if\s*\(\s*!data|data\s*==\s*null|data\s*===\s*null|data\s*\.\s*length\s*[<=>]', "required": False},
+            {"name": "Edge cases", "pattern": r'try|catch|if\s*\(|else\s*\{', "required": False}
+        ]
+    }
+    
+    # Check for each feature
+    results["details"] = {}
+    for category, checks in feature_checks.items():
+        results["details"][category] = {}
+        for check in checks:
+            is_present = bool(re.search(check["pattern"], code))
+            results["details"][category][check["name"]] = is_present
+            
+            if check["required"] and not is_present:
+                results["valid"] = False
+                results["missing_features"].append(f"{category}: {check['name']}")
+            elif is_present:
+                results["present_features"].append(f"{category}: {check['name']}")
     
     # Check for basic D3 v7 method calls
     d3_methods = ['d3.select', 'd3.scaleLinear', 'd3.axisBottom', 'd3.axisLeft']
     if not any(method in code for method in d3_methods):
-        return False
+        results["valid"] = False
+        results["missing_features"].append("Basic D3 methods")
     
     # Check for balanced braces
-    if code.count('{') != code.count('}'):
-        return False
+    if not results["balanced_braces"]:
+        results["valid"] = False
+        results["missing_features"].append("Balanced braces")
     
-    return True
+    return results
+
+def generate_improvement_instructions(validation_results: dict) -> str:
+    """
+    Generate specific instructions for improving D3 code based on validation results.
+    
+    Args:
+        validation_results (dict): Results from the validate_d3_code function.
+    
+    Returns:
+        str: Detailed instructions for improving the code.
+    """
+    if validation_results["valid"]:
+        return "The D3 code meets all required criteria."
+    
+    instructions = ["Your D3.js visualization code needs improvements in the following areas:"]
+    
+    # Group missing features by category
+    missing_by_category = {}
+    for missing in validation_results["missing_features"]:
+        if ":" in missing:
+            category, feature = missing.split(":", 1)
+            if category not in missing_by_category:
+                missing_by_category[category] = []
+            missing_by_category[category].append(feature.strip())
+    
+    # Generate instructions for each category
+    for category, features in missing_by_category.items():
+        instructions.append(f"\n## {category}")
+        
+        if category == "Basic Structure":
+            if "createVisualization function" in features:
+                instructions.append("- Define a function named `createVisualization(data, svgElement)`")
+            if "Clear previous content" in features:
+                instructions.append("- Add code to clear previous visualization: `svgElement.selectAll(\"*\").remove()`")
+            if "Configuration object" in features:
+                instructions.append("- Create a configuration object with customizable parameters (margins, colors, animations)")
+            if "Responsive SVG setup" in features:
+                instructions.append("- Make the SVG responsive with viewBox and preserveAspectRatio attributes")
+        
+        elif category == "Layout":
+            if "Margins configuration" in features:
+                instructions.append("- Define proper margins (top, right, bottom, left)")
+            if "Responsive dimensions" in features:
+                instructions.append("- Calculate dimensions based on container size")
+            if "Window resize handler" in features:
+                instructions.append("- Add a window resize handler to update the visualization")
+        
+        elif category == "Scales and Axes":
+            if "Scale creation" in features:
+                instructions.append("- Create appropriate D3 scales (d3.scaleBand, d3.scaleLinear, etc.)")
+            if "Grid lines" in features:
+                instructions.append("- Add grid lines to the axes using tickSize")
+            if "Axis styling" in features:
+                instructions.append("- Style the axes with proper fonts, colors, and rotated labels if needed")
+        
+        elif category == "Visualization Elements":
+            if "Data binding" in features:
+                instructions.append("- Bind data to visual elements using the D3 data join pattern")
+            if "Color scales" in features:
+                instructions.append("- Use a color scale to differentiate data sources")
+            if "Element styling" in features:
+                instructions.append("- Style elements with fill, stroke, and rounded corners")
+        
+        elif category == "Interactivity":
+            if "Tooltips" in features:
+                instructions.append("- Add tooltips that show on mouseover/hover")
+            if "Highlighting effects" in features:
+                instructions.append("- Implement highlighting effects on hover with transitions")
+            if "Click interactions" in features:
+                instructions.append("- Add click interactions for detailed information")
+        
+        elif category == "Advanced Interactions":
+            if "Zoom functionality" in features:
+                instructions.append("- Implement zoom functionality with d3.zoom()")
+            if "Brush component" in features:
+                instructions.append("- Add a brush component for range selection")
+            if "Reset button" in features:
+                instructions.append("- Create a reset zoom/brush button")
+            if "Axis selection UI" in features:
+                instructions.append("- Add dropdowns to change the variables displayed on axes")
+        
+        elif category == "Animations":
+            if "Entrance animations" in features:
+                instructions.append("- Add entrance animations for visualization elements")
+            if "Staggered animations" in features:
+                instructions.append("- Implement staggered animations using delay based on index")
+            if "Update transitions" in features:
+                instructions.append("- Use transitions for all updates to the visualization")
+        
+        elif category == "UI Components":
+            if "Interactive legend" in features:
+                instructions.append("- Create an interactive legend that allows toggling visibility")
+            if "Dynamic title" in features:
+                instructions.append("- Add a title that updates based on selected axes")
+            if "Axis labels" in features:
+                instructions.append("- Implement axis labels that update dynamically")
+            if "UI controls" in features:
+                instructions.append("- Add UI controls for changing visualization parameters")
+        
+        elif category == "Accessibility":
+            if "ARIA attributes" in features:
+                instructions.append("- Add ARIA attributes for screen readers (role, aria-label)")
+        
+        elif category == "Performance":
+            if "Clip path" in features:
+                instructions.append("- Implement a clip path to prevent elements from overflowing")
+            if "Efficient updates" in features:
+                instructions.append("- Create functions for efficiently updating the visualization")
+    
+    # Add examples for specific visualization types based on evaluation goals
+    instructions.append("\n## Specific Visualization Requirements")
+    instructions.append("- For scatterplots: Implement point markers that can be styled (shape, size) based on data attributes")
+    instructions.append("- For histograms: Support grouped/stacked bars for comparing distributions")
+    instructions.append("- For parallel coordinates: Implement brushable axes and highlighting of selected paths")
+    
+    # Add specific examples for the Iris dataset
+    instructions.append("\n## Iris Dataset Specific Features")
+    instructions.append("- Support color encoding by species (setosa, versicolor, virginica)")
+    instructions.append("- Allow point size to be mapped to petal or sepal measurements")
+    instructions.append("- Support paired/small multiple views for comparing distributions")
+    
+    return "\n".join(instructions)
+
+def get_visualization_template(viz_type: str) -> str:
+    """
+    Get a template for a specific visualization type.
+    
+    Args:
+        viz_type (str): The type of visualization (scatterplot, histogram, parallel, etc.)
+    
+    Returns:
+        str: Template code for the specified visualization type.
+    """
+    templates = {
+        "scatterplot": """
+function createVisualization(data, svgElement) {
+  // Configuration
+  const config = {
+    margin: { top: 60, right: 120, bottom: 80, left: 80 },
+    width: 960,
+    height: 600,
+    transitionDuration: 800,
+    colors: d3.scaleOrdinal(d3.schemeCategory10),
+    tooltipDelay: 300,
+    pointRadius: 5,
+    pointPadding: 1.5,
+    gridOpacity: 0.15,
+    brushHeight: 60,
+    zoomExtent: [0.5, 10],
+    animationEasing: d3.easeCubicInOut
+  };
+
+  // Responsive dimensions
+  const containerWidth = parseInt(d3.select(svgElement.node().parentNode).style('width'));
+  const containerHeight = parseInt(d3.select(svgElement.node().parentNode).style('height'));
+  const width = (containerWidth || config.width) - config.margin.left - config.margin.right;
+  const height = (containerHeight || config.height) - config.margin.top - config.margin.bottom;
+
+  // Clear previous visualization
+  svgElement.selectAll("*").remove();
+
+  // Setup SVG with proper dimensions and viewBox for responsiveness
+  svgElement
+    .attr("width", "100%")
+    .attr("height", "100%")
+    .attr("viewBox", `0 0 ${width + config.margin.left + config.margin.right} ${height + config.margin.top + config.margin.bottom}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
+
+  // Create main visualization group with margin
+  const svg = svgElement.append("g")
+    .attr("transform", `translate(${config.margin.left},${config.margin.top})`)
+    .attr("class", "main-viz-group");
+
+  // Add styled background
+  svg.append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("fill", "#f9f9f9")
+    .attr("rx", 8)
+    .attr("ry", 8)
+    .attr("filter", "drop-shadow(0px 2px 3px rgba(0,0,0,0.1))");
+
+  // Data analysis and preparation
+  const sourceGroups = d3.group(data, d => d.source || d.species);
+  const sources = Array.from(sourceGroups.keys());
+  
+  // Detect numeric columns for dropdown options
+  const numericColumns = Object.entries(data[0])
+    .filter(([key, value]) => !isNaN(+value) && key !== 'source' && key !== 'species')
+    .map(([key]) => key);
+  
+  // Default axes (allow user to change via UI)
+  let xKey = numericColumns[0] || Object.keys(data[0])[0];
+  let yKey = numericColumns[1] || Object.keys(data[0])[1];
+  let sizeKey = numericColumns[2] || numericColumns[0];
+  
+  // Create scales with domains based on data
+  const xScale = d3.scaleLinear()
+    .domain([d3.min(data, d => +d[xKey]) * 0.9, d3.max(data, d => +d[xKey]) * 1.1])
+    .range([0, width]);
+  
+  const yScale = d3.scaleLinear()
+    .domain([d3.min(data, d => +d[yKey]) * 0.9, d3.max(data, d => +d[yKey]) * 1.1])
+    .range([height, 0]);
+  
+  // Size scale for data points
+  const sizeScale = d3.scaleLinear()
+    .domain([d3.min(data, d => +d[sizeKey]), d3.max(data, d => +d[sizeKey])])
+    .range([3, 12]);
+  
+  // Create axes with grid lines
+  const xAxis = d3.axisBottom(xScale)
+    .tickSize(-height)
+    .tickPadding(10)
+    .ticks(10)
+    .tickFormat(d3.format(".2f"));
+  
+  const yAxis = d3.axisLeft(yScale)
+    .tickSize(-width)
+    .tickFormat(d3.format(".2f"))
+    .tickPadding(10);
+  
+  // Add X axis with animation
+  const xAxisGroup = svg.append("g")
+    .attr("class", "x-axis")
+    .attr("transform", `translate(0,${height})`)
+    .call(xAxis);
+  
+  // Style X axis
+  xAxisGroup.selectAll(".tick line")
+    .attr("stroke", "#ddd")
+    .attr("opacity", config.gridOpacity);
+  
+  xAxisGroup.selectAll(".tick text")
+    .attr("font-size", "12px")
+    .attr("font-family", "Arial");
+  
+  xAxisGroup.select(".domain")
+    .attr("stroke", "#999");
+  
+  // Add Y axis with animation
+  const yAxisGroup = svg.append("g")
+    .attr("class", "y-axis")
+    .call(yAxis);
+  
+  // Style Y axis
+  yAxisGroup.selectAll(".tick line")
+    .attr("stroke", "#ddd")
+    .attr("opacity", config.gridOpacity);
+  
+  yAxisGroup.selectAll(".tick text")
+    .attr("font-size", "12px")
+    .attr("font-family", "Arial");
+  
+  yAxisGroup.select(".domain")
+    .attr("stroke", "#999");
+  
+  // Add axis labels
+  const xLabel = svg.append("text")
+    .attr("class", "x-axis-label")
+    .attr("x", width / 2)
+    .attr("y", height + 60)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "14px")
+    .attr("font-weight", "bold")
+    .attr("fill", "#555")
+    .text(xKey);
+  
+  const yLabel = svg.append("text")
+    .attr("class", "y-axis-label")
+    .attr("transform", "rotate(-90)")
+    .attr("x", -height / 2)
+    .attr("y", -60)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "14px")
+    .attr("font-weight", "bold")
+    .attr("fill", "#555")
+    .text(yKey);
+  
+  // Add title with animation
+  const title = svg.append("text")
+    .attr("class", "chart-title")
+    .attr("x", width / 2)
+    .attr("y", -30)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "20px")
+    .attr("font-weight", "bold")
+    .attr("fill", "#333")
+    .text(`Scatterplot of ${yKey} vs ${xKey}`)
+    .style("opacity", 0)
+    .transition()
+    .duration(1000)
+    .style("opacity", 1);
+  
+  // Create tooltip
+  const tooltip = d3.select("body").append("div")
+    .attr("class", "tooltip")
+    .style("position", "absolute")
+    .style("background", "rgba(255, 255, 255, 0.95)")
+    .style("padding", "10px")
+    .style("border-radius", "5px")
+    .style("box-shadow", "0 0 10px rgba(0,0,0,0.25)")
+    .style("pointer-events", "none")
+    .style("font-family", "Arial")
+    .style("font-size", "12px")
+    .style("z-index", "10")
+    .style("opacity", 0);
+  
+  // Create a clip path for the chart area
+  svg.append("defs").append("clipPath")
+    .attr("id", "clip")
+    .append("rect")
+    .attr("width", width)
+    .attr("height", height);
+  
+  // Create chart area with clip path
+  const chartArea = svg.append("g")
+    .attr("clip-path", "url(#clip)")
+    .attr("class", "chart-area");
+  
+  // Create points with animations and interactions
+  const points = chartArea.selectAll(".point")
+    .data(data)
+    .enter()
+    .append("circle")
+    .attr("class", "point")
+    .attr("cx", d => xScale(+d[xKey]))
+    .attr("cy", height) // Start from bottom
+    .attr("r", d => sizeScale(+d[sizeKey]))
+    .attr("fill", d => config.colors(d.source || d.species))
+    .attr("stroke", "#fff")
+    .attr("stroke-width", 1)
+    .style("cursor", "pointer")
+    .on("mouseover", function(event, d) {
+      d3.select(this)
+        .transition()
+        .duration(300)
+        .attr("fill", d3.color(config.colors(d.source || d.species)).brighter(0.5))
+        .attr("stroke-width", 2)
+        .attr("r", d => sizeScale(+d[sizeKey]) * 1.5);
+      
+      tooltip.transition()
+        .duration(200)
+        .style("opacity", 0.9);
+      
+      // Format all data properties for tooltip
+      const tooltipContent = Object.entries(d)
+        .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
+        .join("<br>");
+      
+      tooltip.html(tooltipContent)
+        .style("left", (event.pageX + 10) + "px")
+        .style("top", (event.pageY - 28) + "px");
+      
+      // Add crosshair
+      chartArea.append("line")
+        .attr("class", "crosshair-x")
+        .attr("x1", xScale(+d[xKey]))
+        .attr("x2", xScale(+d[xKey]))
+        .attr("y1", 0)
+        .attr("y2", height)
+        .attr("stroke", "#999")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "5,5");
+      
+      chartArea.append("line")
+        .attr("class", "crosshair-y")
+        .attr("x1", 0)
+        .attr("x2", width)
+        .attr("y1", yScale(+d[yKey]))
+        .attr("y2", yScale(+d[yKey]))
+        .attr("stroke", "#999")
+        .attr("stroke-width", 1)
+        .attr("stroke-dasharray", "5,5");
+    })
+    .on("mouseout", function(event, d) {
+      d3.select(this)
+        .transition()
+        .duration(300)
+        .attr("fill", config.colors(d.source || d.species))
+        .attr("stroke-width", 1)
+        .attr("r", d => sizeScale(+d[sizeKey]));
+      
+      tooltip.transition()
+        .duration(500)
+        .style("opacity", 0);
+      
+      // Remove crosshair
+      chartArea.selectAll(".crosshair-x, .crosshair-y").remove();
+    })
+    .on("click", function(event, d) {
+      // Show detailed information
+      const detailsDiv = d3.select("body").append("div")
+        .attr("class", "details-popup")
+        .style("position", "fixed")
+        .style("left", "50%")
+        .style("top", "50%")
+        .style("transform", "translate(-50%, -50%)")
+        .style("background", "white")
+        .style("padding", "20px")
+        .style("border-radius", "10px")
+        .style("box-shadow", "0 0 20px rgba(0,0,0,0.3)")
+        .style("z-index", "1000")
+        .style("max-width", "500px")
+        .style("width", "80%");
+      
+      detailsDiv.append("h3")
+        .text(`Details for Point`);
+      
+      const table = detailsDiv.append("table")
+        .style("width", "100%")
+        .style("border-collapse", "collapse");
+      
+      Object.entries(d).forEach(([key, value]) => {
+        const row = table.append("tr");
+        row.append("td")
+          .text(key)
+          .style("padding", "8px")
+          .style("border-bottom", "1px solid #ddd")
+          .style("font-weight", "bold");
+        
+        row.append("td")
+          .text(value)
+          .style("padding", "8px")
+          .style("border-bottom", "1px solid #ddd");
+      });
+      
+      detailsDiv.append("button")
+        .text("Close")
+        .style("margin-top", "15px")
+        .style("padding", "8px 15px")
+        .style("background", "#f44336")
+        .style("color", "white")
+        .style("border", "none")
+        .style("border-radius", "4px")
+        .style("cursor", "pointer")
+        .on("click", function() {
+          detailsDiv.remove();
+        });
+    })
+    .transition()
+    .duration(config.transitionDuration)
+    .delay((d, i) => i * 10) // Staggered animation
+    .attr("cy", d => yScale(+d[yKey]))
+    .ease(config.animationEasing);
+  
+  // Create interactive legend
+  const legend = svg.append("g")
+    .attr("class", "legend")
+    .attr("transform", `translate(${width + 20}, 20)`);
+  
+  const legendItems = legend.selectAll(".legend-item")
+    .data(sources)
+    .enter()
+    .append("g")
+    .attr("class", "legend-item")
+    .attr("transform", (d, i) => `translate(0, ${i * 25})`)
+    .style("cursor", "pointer")
+    .on("click", function(event, d) {
+      // Toggle visibility
+      const isActive = !d3.select(this).classed("inactive");
+      d3.select(this).classed("inactive", isActive);
+      
+      const opacity = isActive ? 0.2 : 1;
+      const legendOpacity = isActive ? 0.5 : 1;
+      
+      d3.select(this).select("text")
+        .style("opacity", legendOpacity);
+      
+      d3.select(this).select("circle")
+        .style("opacity", legendOpacity);
+      
+      // Update points
+      chartArea.selectAll(".point")
+        .filter(data => (data.source || data.species) === d)
+        .transition()
+        .duration(500)
+        .style("opacity", opacity);
+    });
+  
+  legendItems.append("circle")
+    .attr("r", 6)
+    .attr("cx", 0)
+    .attr("cy", 0)
+    .attr("fill", d => config.colors(d));
+  
+  legendItems.append("text")
+    .attr("x", 15)
+    .attr("y", 0)
+    .attr("dy", ".35em")
+    .attr("font-size", "12px")
+    .attr("fill", "#555")
+    .text(d => d);
+  
+  // Add brush for zooming
+  const brush = d3.brush()
+    .extent([[0, 0], [width, height]])
+    .on("end", brushed);
+  
+  const brushArea = chartArea.append("g")
+    .attr("class", "brush")
+    .call(brush);
+  
+  // Add brush reset button
+  const resetButton = svg.append("g")
+    .attr("class", "reset-button")
+    .attr("transform", `translate(${width - 80}, ${height + 40})`)
+    .style("cursor", "pointer")
+    .on("click", resetZoom);
+  
+  resetButton.append("rect")
+    .attr("width", 80)
+    .attr("height", 25)
+    .attr("rx", 4)
+    .attr("ry", 4)
+    .attr("fill", "#4CAF50");
+  
+  resetButton.append("text")
+    .attr("x", 40)
+    .attr("y", 12.5)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", "white")
+    .attr("font-size", "12px")
+    .text("Reset Zoom");
+  
+  // Add axis selection dropdowns
+  const dropdownArea = svg.append("g")
+    .attr("class", "dropdown-area")
+    .attr("transform", `translate(${width + 20}, 20)`);
+  
+  // Add axis selection dropdowns
+  const xDropdown = dropdownArea.append("select")
+    .attr("class", "x-dropdown")
+    .on("change", function() {
+      xKey = this.value;
+      updateVisualization();
+    });
+  
+  const yDropdown = dropdownArea.append("select")
+    .attr("class", "y-dropdown")
+    .on("change", function() {
+      yKey = this.value;
+      updateVisualization();
+    });
+  
+  // Populate dropdown options
+  xDropdown.selectAll("option")
+    .data(numericColumns)
+    .enter()
+    .append("option")
+    .attr("value", d => d)
+    .text(d => d);
+  
+  yDropdown.selectAll("option")
+    .data(numericColumns)
+    .enter()
+    .append("option")
+    .attr("value", d => d)
+    .text(d => d);
+  
+  // Add update button
+  const updateButton = svg.append("g")
+    .attr("class", "update-button")
+    .attr("transform", `translate(${width + 20}, ${height + 40})`)
+    .style("cursor", "pointer")
+    .on("click", updateVisualization);
+  
+  updateButton.append("rect")
+    .attr("width", 80)
+    .attr("height", 25)
+    .attr("rx", 4)
+    .attr("ry", 4)
+    .attr("fill", "#4CAF50");
+  
+  updateButton.append("text")
+    .attr("x", 40)
+    .attr("y", 12.5)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", "white")
+    .attr("font-size", "12px")
+    .text("Update");
+}
 
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
