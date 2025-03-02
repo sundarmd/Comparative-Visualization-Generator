@@ -29,6 +29,8 @@ if 'current_viz' not in st.session_state:
     st.session_state.current_viz = None  # Stores the current D3.js visualization code
 if 'preprocessed_df' not in st.session_state:
     st.session_state.preprocessed_df = None  # Stores the preprocessed DataFrame
+if 'json_data' not in st.session_state:
+    st.session_state.json_data = None  # Stores the JSON data for visualization
 if 'update_viz' not in st.session_state:
     st.session_state.update_viz = False  # Flag to trigger visualization update
 if 'chat_history' not in st.session_state:
@@ -1255,6 +1257,9 @@ def main():
                 with st.spinner("Preprocessing data..."):
                     merged_df = preprocess_data(file1, file2)
                 st.session_state.preprocessed_df = merged_df
+                # Convert DataFrame to JSON and store in session state
+                st.session_state.json_data = merged_df.to_dict(orient='records')
+                logger.info(f"Initialized json_data with {len(st.session_state.json_data)} records")
             
             with st.expander("Preview of preprocessed data"):
                 st.dataframe(st.session_state.preprocessed_df.head())
@@ -1289,6 +1294,11 @@ def main():
                     # Show processing message
                     with st.status("Processing your request...", expanded=True) as status:
                         st.write(f"Working on: '{user_input}'")
+                        
+                        # Make sure json_data is initialized and up to date
+                        if 'json_data' not in st.session_state or st.session_state.json_data is None:
+                            st.session_state.json_data = st.session_state.preprocessed_df.to_dict(orient='records')
+                            logger.info(f"Updated json_data with {len(st.session_state.json_data)} records")
                         
                         # Step 1: Generate the new visualization code
                         try:
