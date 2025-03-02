@@ -932,10 +932,10 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
     ## Example Data
     ```json
     [
-      {"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5},
-      {"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8},
-      {"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12},
-      {"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}
+      {{"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5}},
+      {{"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8}},
+      {{"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12}},
+      {{"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}}
     ]
     ```
 
@@ -1034,10 +1034,10 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         ## Example Data
         ```json
         [
-          {"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5},
-          {"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8},
-          {"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12},
-          {"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}
+          {{"category": "A", "value": 10, "source": "Dataset 1", "otherValue": 5}},
+          {{"category": "B", "value": 15, "source": "Dataset 1", "otherValue": 8}},
+          {{"category": "A", "value": 8, "source": "Dataset 2", "otherValue": 12}},
+          {{"category": "B", "value": 20, "source": "Dataset 2", "otherValue": 6}}
         ]
         ```
 
