@@ -475,7 +475,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         1. Create a function named createVisualization(data, svgElement) that follows professional D3 standards
            - IMPORTANT: svgElement parameter is a D3 selection, not a raw DOM element
            - Always use svgElement.append() instead of d3.select("svg").append()
-           - Do NOT use .node() on svgElement unless absolutely necessary
+           - You can use window.safeD3 for safer scale and axis creation
         
         2. Include a comprehensive configuration object with:
            - Proper margins (top, right, bottom, left)
@@ -496,8 +496,6 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Formatted tick values
            - Rotated labels if needed
            - Smooth transitions for updates
-           - CRITICAL: Always check if scales are defined before using .ticks() method
-           - CRITICAL: Always explicitly set .domain() and .range() for every scale
         
         5. Add rich interactivity:
            - Detailed tooltips with all relevant data
@@ -511,20 +509,16 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Role descriptions
            - Keyboard navigation if applicable
         
-        7. Add comprehensive error handling:
-           - Check for data existence and structure
-           - Provide fallbacks for missing values
-           - Visual feedback for errors
-           - Use try-catch blocks for any critical operations
-           - CRITICAL: Always validate data before creating scales or using D3 methods
-           - CRITICAL: Check if values exist before using them as scale inputs
+        7. Add basic error handling:
+           - Check for data existence before using it
+           - Provide sensible fallbacks when needed
         
-        ## TECHNICAL SAFEGUARDS:
-        - All D3 scales must explicitly define both domain and range
-        - Always wrap scale creation in defensive checks (e.g., if(!data || !data.length) return;)
-        - When creating axes with ticks, use .ticks(5) to explicitly set tick count
-        - Always check if a value is undefined before using it in D3 methods
-        - Use default values for missing data (e.g., d => d ? d.value : 0)
+        ## SPECIAL HELPER METHODS
+        You can use these helper methods in your code for more robust visualizations:
+        
+        - window.safeD3.createLinearScale(domain, range) - Creates a scale with fallbacks
+        - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
+        - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
         
         ## OUTPUT RULES (CRITICALLY IMPORTANT):
         - The code MUST start with 'function createVisualization(data, svgElement) {{'
@@ -550,7 +544,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly. ALWAYS include proper error handling and defensively check data before creating scales or using D3 methods."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -564,7 +558,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly. ALWAYS include proper error handling and defensively check data before creating scales or using D3 methods."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -886,18 +880,95 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                     setTimeout(renderVisualization, 100);
                 }}
                 
+                // Safe D3 methods that wrap common operations with error handling
+                const safeD3 = {{
+                    // Safe scale creation that handles missing/invalid domains
+                    createLinearScale: function(domain, range) {{
+                        try {{
+                            // Use default domain if missing or invalid
+                            const safeDomain = (Array.isArray(domain) && domain.length === 2) 
+                                ? domain 
+                                : [0, 100];
+                            
+                            // Use default range if missing or invalid
+                            const safeRange = (Array.isArray(range) && range.length === 2)
+                                ? range
+                                : [0, 500];
+                                
+                            return d3.scaleLinear().domain(safeDomain).range(safeRange);
+                        }} catch (e) {{
+                            console.warn("Error creating scale:", e);
+                            return d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                        }}
+                    }},
+                    
+                    // Safe axis creation that handles invalid scales
+                    createAxis: function(scaleOrType, tickCount = 5) {{
+                        try {{
+                            let axis;
+                            
+                            // Handle both direct scale objects and axis type strings
+                            if (typeof scaleOrType === 'function') {{
+                                // It's a scale
+                                axis = d3.axisBottom(scaleOrType);
+                            }} else if (typeof scaleOrType === 'string') {{
+                                // It's a type string
+                                const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                                
+                                switch(scaleOrType) {{
+                                    case 'bottom': axis = d3.axisBottom(scale); break;
+                                    case 'left': axis = d3.axisLeft(scale); break;
+                                    case 'right': axis = d3.axisRight(scale); break;
+                                    case 'top': axis = d3.axisTop(scale); break;
+                                    default: axis = d3.axisBottom(scale);
+                                }}
+                            }} else {{
+                                // Neither - create a default
+                                const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                                axis = d3.axisBottom(scale);
+                            }}
+                            
+                            // Always set a safe tick count
+                            return axis.ticks(tickCount);
+                        }} catch (e) {{
+                            console.warn("Error creating axis:", e);
+                            // Return a minimal working axis as fallback
+                            const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                            return d3.axisBottom(scale).ticks(5);
+                        }}
+                    }},
+                    
+                    // Safe data accessor that handles missing properties
+                    getValue: function(d, property, defaultValue = 0) {{
+                        if (!d) return defaultValue;
+                        return d[property] !== undefined ? d[property] : defaultValue;
+                    }}
+                }};
+                
+                // Override problematic D3 methods to catch errors
+                const originalAxisBottom = d3.axisBottom;
+                d3.axisBottom = function(scale) {{
+                    if (!scale) {{
+                        console.warn("Undefined scale passed to axisBottom, using fallback");
+                        scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                    }}
+                    return originalAxisBottom(scale);
+                }};
+                
+                const originalAxisLeft = d3.axisLeft;
+                d3.axisLeft = function(scale) {{
+                    if (!scale) {{
+                        console.warn("Undefined scale passed to axisLeft, using fallback");
+                        scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                    }}
+                    return originalAxisLeft(scale);
+                }};
+                
                 // Helper function to validate data
                 function validateData(data) {{
                     if (!data || !Array.isArray(data) || data.length === 0) {{
                         throw new Error("Data is empty or not in expected format");
                     }}
-                    
-                    // Check first row for expected structure
-                    const firstRow = data[0];
-                    if (!firstRow || typeof firstRow !== 'object') {{
-                        throw new Error("Data format is not compatible with visualization");
-                    }}
-                    
                     return true;
                 }}
                 
@@ -968,6 +1039,8 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                             if (typeof createVisualization === 'function') {{
                                 // Wrap the function call in a try-catch to handle D3-specific errors
                                 try {{
+                                    // Make safeD3 available to the visualization function
+                                    window.safeD3 = safeD3;
                                     createVisualization(data, svgElement);
                                     console.log("Visualization successfully rendered");
                                 }} catch (d3Error) {{
@@ -975,14 +1048,11 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                                     
                                     // Check for common D3 errors and provide helpful messages
                                     let errorMessage = d3Error.message;
-                                    if (d3Error.message.includes("ticks")) {{
-                                        errorMessage = "Error with axis scales: Could not generate ticks. Check if your data has valid numeric values for all dimensions.";
-                                    }} else if (d3Error.message.includes("undefined")) {{
-                                        errorMessage = "Error with undefined values: The visualization encountered undefined data or properties.";
+                                    if (d3Error.message.includes("ticks") || d3Error.message.includes("undefined")) {{
+                                        errorMessage = "Error with visualization data: The visualization couldn't be created with this data. Try a different request.";
                                     }}
                                     
                                     createFallbackVisualization(errorMessage);
-                                    throw d3Error; // Re-throw for logging
                                 }}
                             }} else {{
                                 throw new Error("createVisualization function not found in the generated code");
@@ -991,7 +1061,7 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
                             console.error("Error calling createVisualization:", funcError);
                             document.getElementById("visualization").innerHTML = 
                                 `<div class="error-message">
-                                    <h3>Error Executing Visualization Function</h3>
+                                    <h3>Error Creating Visualization</h3>
                                     <p>${{funcError.message}}</p>
                                     <p>Try a different visualization request or check your data.</p>
                                 </div>`;
@@ -1375,7 +1445,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     1. Create a COMPLETELY DIFFERENT visualization that fulfills the user request
        - IMPORTANT: The svgElement parameter is a D3 selection, not a raw DOM element
        - Always use svgElement.append() instead of d3.select("svg").append()
-       - Do NOT use .node() on svgElement unless absolutely necessary
+       - You can use window.safeD3 for safer scale and axis creation
        
     2. Do NOT return code similar to the current code
     
@@ -1388,25 +1458,22 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     
     5. Add detailed comments explaining your visualization logic
     
-    6. Implement robust error handling:
-       - Always check if data exists and has the right format before using it
-       - Use try-catch blocks for critical operations
-       - CRITICAL: When using scales, explicitly set both domain and range
-       - CRITICAL: Always check if scales are defined before calling .ticks() or other methods
-       - Provide fallbacks for missing or invalid data
+    6. Implement basic error handling:
+       - Check for data existence before using it
+       - Provide sensible fallbacks when needed
     
-    ## TECHNICAL SAFEGUARDS:
-    - All D3 scales must explicitly define both domain and range
-    - Always wrap scale creation in defensive checks (e.g., if(!data || !data.length) return;)
-    - When creating axes with ticks, use .ticks(5) to explicitly set tick count
-    - Always check if a value is undefined before using it in D3 methods
-    - Use default values for missing data (e.g., d => d ? d.value : 0)
+    ## SPECIAL HELPER METHODS
+    You can use these helper methods in your code for more robust visualizations:
+    
+    - window.safeD3.createLinearScale(domain, range) - Creates a scale with fallbacks
+    - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
+    - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
     
     ## OUTPUT RULES (CRITICALLY IMPORTANT):
     - The code MUST start with 'function createVisualization(data, svgElement) {{'
     - Return ONLY the complete JavaScript code
     - DO NOT include ANY explanatory text, markdown, or code block formatting
-    - DO NOT write any response except the actual code
+    - DO NOT include any comments or descriptions outside the code itself
     - DO NOT include text like "Here is the code" or "The code creates..."
     - NEVER include any commentary after the closing brace of the function
     """
@@ -1426,7 +1493,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one. ALWAYS include proper error handling and defensively check data before creating scales or using D3 methods."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
                         }, {
                             "role": "user",
                             "content": prompt
@@ -1440,7 +1507,7 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
                         model=model,
                         messages=[{
                             "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one. ALWAYS include proper error handling and defensively check data before creating scales or using D3 methods."
+                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
                         }, {
                             "role": "user",
                             "content": prompt
