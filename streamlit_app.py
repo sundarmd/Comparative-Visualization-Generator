@@ -356,539 +356,48 @@ def generate_improvement_instructions(validation_results: dict) -> str:
     
     return "\n".join(instructions)
 
-def get_visualization_template(viz_type: str) -> str:
-    """
-    Get a template for a specific visualization type.
-    
-    Args:
-        viz_type (str): The type of visualization (scatterplot, histogram, parallel, etc.)
-    
-    Returns:
-        str: Template code for the specified visualization type.
-    """
-    templates = {
-        "scatterplot": """
-function createVisualization(data, svgElement) {
-  // Configuration
-  const config = {
-    margin: { top: 60, right: 120, bottom: 80, left: 80 },
-    width: 960,
-    height: 600,
-    transitionDuration: 800,
-    colors: d3.scaleOrdinal(d3.schemeCategory10),
-    tooltipDelay: 300,
-    pointRadius: 5,
-    pointPadding: 1.5,
-    gridOpacity: 0.15,
-    brushHeight: 60,
-    zoomExtent: [0.5, 10],
-    animationEasing: d3.easeCubicInOut
-  };
-
-  // Responsive dimensions
-  const containerWidth = parseInt(d3.select(svgElement.node().parentNode).style('width'));
-  const containerHeight = parseInt(d3.select(svgElement.node().parentNode).style('height'));
-  const width = (containerWidth || config.width) - config.margin.left - config.margin.right;
-  const height = (containerHeight || config.height) - config.margin.top - config.margin.bottom;
-
-  // Clear previous visualization
-  svgElement.selectAll("*").remove();
-
-  // Setup SVG with proper dimensions and viewBox for responsiveness
-  svgElement
-    .attr("width", "100%")
-    .attr("height", "100%")
-    .attr("viewBox", `0 0 ${width + config.margin.left + config.margin.right} ${height + config.margin.top + config.margin.bottom}`)
-    .attr("preserveAspectRatio", "xMidYMid meet");
-
-  // Create main visualization group with margin
-  const svg = svgElement.append("g")
-    .attr("transform", `translate(${config.margin.left},${config.margin.top})`)
-    .attr("class", "main-viz-group");
-
-  // Add styled background
-  svg.append("rect")
-    .attr("width", width)
-    .attr("height", height)
-    .attr("fill", "#f9f9f9")
-    .attr("rx", 8)
-    .attr("ry", 8)
-    .attr("filter", "drop-shadow(0px 2px 3px rgba(0,0,0,0.1))");
-
-  // Data analysis and preparation
-  const sourceGroups = d3.group(data, d => d.source || d.species);
-  const sources = Array.from(sourceGroups.keys());
-  
-  // Detect numeric columns for dropdown options
-  const numericColumns = Object.entries(data[0])
-    .filter(([key, value]) => !isNaN(+value) && key !== 'source' && key !== 'species')
-    .map(([key]) => key);
-  
-  // Default axes (allow user to change via UI)
-  let xKey = numericColumns[0] || Object.keys(data[0])[0];
-  let yKey = numericColumns[1] || Object.keys(data[0])[1];
-  let sizeKey = numericColumns[2] || numericColumns[0];
-  
-  // Create scales with domains based on data
-  const xScale = d3.scaleLinear()
-    .domain([d3.min(data, d => +d[xKey]) * 0.9, d3.max(data, d => +d[xKey]) * 1.1])
-    .range([0, width]);
-  
-  const yScale = d3.scaleLinear()
-    .domain([d3.min(data, d => +d[yKey]) * 0.9, d3.max(data, d => +d[yKey]) * 1.1])
-    .range([height, 0]);
-  
-  // Size scale for data points
-  const sizeScale = d3.scaleLinear()
-    .domain([d3.min(data, d => +d[sizeKey]), d3.max(data, d => +d[sizeKey])])
-    .range([3, 12]);
-  
-  // Create axes with grid lines
-  const xAxis = d3.axisBottom(xScale)
-    .tickSize(-height)
-    .tickPadding(10)
-    .ticks(10)
-    .tickFormat(d3.format(".2f"));
-  
-  const yAxis = d3.axisLeft(yScale)
-    .tickSize(-width)
-    .tickFormat(d3.format(".2f"))
-    .tickPadding(10);
-  
-  // Add X axis with animation
-  const xAxisGroup = svg.append("g")
-    .attr("class", "x-axis")
-    .attr("transform", `translate(0,${height})`)
-    .call(xAxis);
-  
-  // Style X axis
-  xAxisGroup.selectAll(".tick line")
-    .attr("stroke", "#ddd")
-    .attr("opacity", config.gridOpacity);
-  
-  xAxisGroup.selectAll(".tick text")
-    .attr("font-size", "12px")
-    .attr("font-family", "Arial");
-  
-  xAxisGroup.select(".domain")
-    .attr("stroke", "#999");
-  
-  // Add Y axis with animation
-  const yAxisGroup = svg.append("g")
-    .attr("class", "y-axis")
-    .call(yAxis);
-  
-  // Style Y axis
-  yAxisGroup.selectAll(".tick line")
-    .attr("stroke", "#ddd")
-    .attr("opacity", config.gridOpacity);
-  
-  yAxisGroup.selectAll(".tick text")
-    .attr("font-size", "12px")
-    .attr("font-family", "Arial");
-  
-  yAxisGroup.select(".domain")
-    .attr("stroke", "#999");
-  
-  // Add axis labels
-  const xLabel = svg.append("text")
-    .attr("class", "x-axis-label")
-    .attr("x", width / 2)
-    .attr("y", height + 60)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "14px")
-    .attr("font-weight", "bold")
-    .attr("fill", "#555")
-    .text(xKey);
-  
-  const yLabel = svg.append("text")
-    .attr("class", "y-axis-label")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -height / 2)
-    .attr("y", -60)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "14px")
-    .attr("font-weight", "bold")
-    .attr("fill", "#555")
-    .text(yKey);
-  
-  // Add title with animation
-  const title = svg.append("text")
-    .attr("class", "chart-title")
-    .attr("x", width / 2)
-    .attr("y", -30)
-    .attr("text-anchor", "middle")
-    .attr("font-size", "20px")
-    .attr("font-weight", "bold")
-    .attr("fill", "#333")
-    .text(`Scatterplot of ${yKey} vs ${xKey}`)
-    .style("opacity", 0)
-    .transition()
-    .duration(1000)
-    .style("opacity", 1);
-  
-  // Create tooltip
-  const tooltip = d3.select("body").append("div")
-    .attr("class", "tooltip")
-    .style("position", "absolute")
-    .style("background", "rgba(255, 255, 255, 0.95)")
-    .style("padding", "10px")
-    .style("border-radius", "5px")
-    .style("box-shadow", "0 0 10px rgba(0,0,0,0.25)")
-    .style("pointer-events", "none")
-    .style("font-family", "Arial")
-    .style("font-size", "12px")
-    .style("z-index", "10")
-    .style("opacity", 0);
-  
-  // Create a clip path for the chart area
-  svg.append("defs").append("clipPath")
-    .attr("id", "clip")
-    .append("rect")
-    .attr("width", width)
-    .attr("height", height);
-  
-  // Create chart area with clip path
-  const chartArea = svg.append("g")
-    .attr("clip-path", "url(#clip)")
-    .attr("class", "chart-area");
-  
-  // Create points with animations and interactions
-  const points = chartArea.selectAll(".point")
-    .data(data)
-    .enter()
-    .append("circle")
-    .attr("class", "point")
-    .attr("cx", d => xScale(+d[xKey]))
-    .attr("cy", height) // Start from bottom
-    .attr("r", d => sizeScale(+d[sizeKey]))
-    .attr("fill", d => config.colors(d.source || d.species))
-    .attr("stroke", "#fff")
-    .attr("stroke-width", 1)
-    .style("cursor", "pointer")
-    .on("mouseover", function(event, d) {
-      d3.select(this)
-        .transition()
-        .duration(300)
-        .attr("fill", d3.color(config.colors(d.source || d.species)).brighter(0.5))
-        .attr("stroke-width", 2)
-        .attr("r", d => sizeScale(+d[sizeKey]) * 1.5);
-      
-      tooltip.transition()
-        .duration(200)
-        .style("opacity", 0.9);
-      
-      // Format all data properties for tooltip
-      const tooltipContent = Object.entries(d)
-        .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
-        .join("<br>");
-      
-      tooltip.html(tooltipContent)
-        .style("left", (event.pageX + 10) + "px")
-        .style("top", (event.pageY - 28) + "px");
-      
-      // Add crosshair
-      chartArea.append("line")
-        .attr("class", "crosshair-x")
-        .attr("x1", xScale(+d[xKey]))
-        .attr("x2", xScale(+d[xKey]))
-        .attr("y1", 0)
-        .attr("y2", height)
-        .attr("stroke", "#999")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "5,5");
-      
-      chartArea.append("line")
-        .attr("class", "crosshair-y")
-        .attr("x1", 0)
-        .attr("x2", width)
-        .attr("y1", yScale(+d[yKey]))
-        .attr("y2", yScale(+d[yKey]))
-        .attr("stroke", "#999")
-        .attr("stroke-width", 1)
-        .attr("stroke-dasharray", "5,5");
-    })
-    .on("mouseout", function(event, d) {
-      d3.select(this)
-        .transition()
-        .duration(300)
-        .attr("fill", config.colors(d.source || d.species))
-        .attr("stroke-width", 1)
-        .attr("r", d => sizeScale(+d[sizeKey]));
-      
-      tooltip.transition()
-        .duration(500)
-        .style("opacity", 0);
-      
-      // Remove crosshair
-      chartArea.selectAll(".crosshair-x, .crosshair-y").remove();
-    })
-    .on("click", function(event, d) {
-      // Show detailed information
-      const detailsDiv = d3.select("body").append("div")
-        .attr("class", "details-popup")
-        .style("position", "fixed")
-        .style("left", "50%")
-        .style("top", "50%")
-        .style("transform", "translate(-50%, -50%)")
-        .style("background", "white")
-        .style("padding", "20px")
-        .style("border-radius", "10px")
-        .style("box-shadow", "0 0 20px rgba(0,0,0,0.3)")
-        .style("z-index", "1000")
-        .style("max-width", "500px")
-        .style("width", "80%");
-      
-      detailsDiv.append("h3")
-        .text(`Details for Point`);
-      
-      const table = detailsDiv.append("table")
-        .style("width", "100%")
-        .style("border-collapse", "collapse");
-      
-      Object.entries(d).forEach(([key, value]) => {
-        const row = table.append("tr");
-        row.append("td")
-          .text(key)
-          .style("padding", "8px")
-          .style("border-bottom", "1px solid #ddd")
-          .style("font-weight", "bold");
-        
-        row.append("td")
-          .text(value)
-          .style("padding", "8px")
-          .style("border-bottom", "1px solid #ddd");
-      });
-      
-      detailsDiv.append("button")
-        .text("Close")
-        .style("margin-top", "15px")
-        .style("padding", "8px 15px")
-        .style("background", "#f44336")
-        .style("color", "white")
-        .style("border", "none")
-        .style("border-radius", "4px")
-        .style("cursor", "pointer")
-        .on("click", function() {
-          detailsDiv.remove();
-        });
-    })
-    .transition()
-    .duration(config.transitionDuration)
-    .delay((d, i) => i * 10) // Staggered animation
-    .attr("cy", d => yScale(+d[yKey]))
-    .ease(config.animationEasing);
-  
-  // Create interactive legend
-  const legend = svg.append("g")
-    .attr("class", "legend")
-    .attr("transform", `translate(${width + 20}, 20)`);
-  
-  const legendItems = legend.selectAll(".legend-item")
-    .data(sources)
-    .enter()
-    .append("g")
-    .attr("class", "legend-item")
-    .attr("transform", (d, i) => `translate(0, ${i * 25})`)
-    .style("cursor", "pointer")
-    .on("click", function(event, d) {
-      // Toggle visibility
-      const isActive = !d3.select(this).classed("inactive");
-      d3.select(this).classed("inactive", isActive);
-      
-      const opacity = isActive ? 0.2 : 1;
-      const legendOpacity = isActive ? 0.5 : 1;
-      
-      d3.select(this).select("text")
-        .style("opacity", legendOpacity);
-      
-      d3.select(this).select("circle")
-        .style("opacity", legendOpacity);
-      
-      // Update points
-      chartArea.selectAll(".point")
-        .filter(data => (data.source || data.species) === d)
-        .transition()
-        .duration(500)
-        .style("opacity", opacity);
-    });
-  
-  legendItems.append("circle")
-    .attr("r", 6)
-    .attr("cx", 0)
-    .attr("cy", 0)
-    .attr("fill", d => config.colors(d));
-  
-  legendItems.append("text")
-    .attr("x", 15)
-    .attr("y", 0)
-    .attr("dy", ".35em")
-    .attr("font-size", "12px")
-    .attr("fill", "#555")
-    .text(d => d);
-  
-  // Add brush for zooming
-  const brush = d3.brush()
-    .extent([[0, 0], [width, height]])
-    .on("end", brushed);
-  
-  const brushArea = chartArea.append("g")
-    .attr("class", "brush")
-    .call(brush);
-  
-  // Add brush reset button
-  const resetButton = svg.append("g")
-    .attr("class", "reset-button")
-    .attr("transform", `translate(${width - 80}, ${height + 40})`)
-    .style("cursor", "pointer")
-    .on("click", resetZoom);
-  
-  resetButton.append("rect")
-    .attr("width", 80)
-    .attr("height", 25)
-    .attr("rx", 4)
-    .attr("ry", 4)
-    .attr("fill", "#4CAF50");
-  
-  resetButton.append("text")
-    .attr("x", 40)
-    .attr("y", 12.5)
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
-    .attr("fill", "white")
-    .attr("font-size", "12px")
-    .text("Reset Zoom");
-  
-  // Add axis selection dropdowns
-  const dropdownArea = svg.append("g")
-    .attr("class", "dropdown-area")
-    .attr("transform", `translate(${width + 20}, 20)`);
-  
-  // Add axis selection dropdowns
-  const xDropdown = dropdownArea.append("select")
-    .attr("class", "x-dropdown")
-    .on("change", function() {
-      xKey = this.value;
-      updateVisualization();
-    });
-  
-  const yDropdown = dropdownArea.append("select")
-    .attr("class", "y-dropdown")
-    .on("change", function() {
-      yKey = this.value;
-      updateVisualization();
-    });
-  
-  // Populate dropdown options
-  xDropdown.selectAll("option")
-    .data(numericColumns)
-    .enter()
-    .append("option")
-    .attr("value", d => d)
-    .text(d => d);
-  
-  yDropdown.selectAll("option")
-    .data(numericColumns)
-    .enter()
-    .append("option")
-    .attr("value", d => d)
-    .text(d => d);
-  
-  // Add update button
-  const updateButton = svg.append("g")
-    .attr("class", "update-button")
-    .attr("transform", `translate(${width + 20}, ${height + 40})`)
-    .style("cursor", "pointer")
-    .on("click", updateVisualization);
-  
-  updateButton.append("rect")
-    .attr("width", 80)
-    .attr("height", 25)
-    .attr("rx", 4)
-    .attr("ry", 4)
-    .attr("fill", "#4CAF50");
-  
-  updateButton.append("text")
-    .attr("x", 40)
-    .attr("y", 12.5)
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
-    .attr("fill", "white")
-    .attr("font-size", "12px")
-    .text("Update");
-}
-"""
-    }
-    
-    # Return the requested template or a default one if not found
-    return templates.get(viz_type, templates.get("scatterplot", "function createVisualization(data, svgElement) {}"))
-
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
-    Generate D3.js code using OpenAI API with emphasis on comparison and readability.
+    Generate D3.js code using OpenAI API based on data and user requests.
     
     Args:
-        df (pd.DataFrame): The preprocessed DataFrame.
+        df (pd.DataFrame): The preprocessed DataFrame containing the data to visualize.
         api_key (str): OpenAI API key.
-        user_input (str, optional): Additional user requirements for visualization.
+        user_input (str, optional): User's request for visualization modifications.
     
     Returns:
-        str: Generated D3.js code.
+        str: D3.js visualization code.
     """
     user_input = str(user_input).strip() if user_input is not None else ""
     
     # Debug log
     logger.info(f"GENERATE D3 CODE FUNCTION CALLED WITH USER INPUT: '{user_input}'")
     
-    data_sample = df.head(5).to_dict(orient='records')
-    schema = df.dtypes.to_dict()
-    schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
-    
-    openai.api_key = api_key
-    
-    # Get model and parameters
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
-    max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
-    temperature = float(os.getenv("TEMPERATURE", "0.7"))
-    
-    # Check if this is a modification request
-    if user_input and hasattr(st.session_state, 'current_viz') and st.session_state.current_viz:
-        prompt = f"""
-        # VISUALIZATION MODIFICATION REQUEST
+    try:
+        # Validate and prepare data sample
+        if df is None or df.empty:
+            logger.error("Empty or invalid DataFrame provided")
+            raise ValueError("Data validation failed: Empty DataFrame")
+            
+        data_sample = df.head(5).to_dict(orient='records')
+        schema = df.dtypes.to_dict()
+        schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
         
-        ## USER REQUEST: 
-        "{user_input}"
+        openai.api_key = api_key
         
-        ## CURRENT CODE TO MODIFY:
-        ```javascript
-        {st.session_state.current_viz}
-        ```
+        # Get model and parameters
+        model = os.getenv("DEFAULT_MODEL", "gpt-4")
+        max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
+        temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
-        ## DATA INFORMATION:
-        Schema: {schema_str}
-        
-        Sample data: 
-        ```json
-        {json.dumps(data_sample[:5], indent=2)}
-        ```
-        
-        ## INSTRUCTIONS:
-        1. YOU MUST MAKE CHANGES to the visualization according to the user's request
-        2. DO NOT return the same code - the visualization must be modified
-        3. Return ONLY the complete JavaScript code with no explanations
-        4. Make sure to define the createVisualization(data, svgElement) function
-        5. The visualization should be responsive and interactive
-        
-        YOUR RESPONSE MUST START WITH 'function createVisualization' AND CONTAIN ONLY D3.js CODE.
-        """
-        
-        logger.info("USING MODIFICATION PROMPT WITH CURRENT VIZ CODE")
-    else:
-        # Initial visualization creation
+        # Enhanced prompt with quality standards matching the sample
         prompt = f"""
         # D3.js VISUALIZATION CREATION
+
+        Create a high-quality D3.js version 7 visualization based on the following:
         
-        Create a D3.js version 7 visualization based on the following data:
+        ## USER REQUEST:
+        {user_input if user_input else "Create an initial visualization that best represents this data"}
         
         ## DATA INFORMATION:
         Schema: {schema_str}
@@ -898,60 +407,102 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         {json.dumps(data_sample[:5], indent=2)}
         ```
         
-        ## INSTRUCTIONS:
-        1. Create a function named createVisualization(data, svgElement)
-        2. The function should create a clear, interactive visualization
-        3. Use D3.js version 7 syntax
-        4. Return ONLY the complete JavaScript code with no explanations
-        5. Make the visualization responsive using viewBox and resize listeners
+        ## REQUIREMENTS:
+        1. Create a function named createVisualization(data, svgElement) that follows professional D3 standards
         
-        USER PREFERENCES (if any):
-        "{user_input}"
+        2. Include a comprehensive configuration object with:
+           - Proper margins (top, right, bottom, left)
+           - Width and height
+           - Transition durations and easing functions
+           - Color scales
+           - Tooltip settings
+           - Animation parameters
         
-        YOUR RESPONSE MUST START WITH 'function createVisualization' AND CONTAIN ONLY D3.js CODE.
+        3. Implement responsive design:
+           - Get container dimensions from parent element
+           - Use viewBox for SVG scaling
+           - Handle window resize events
+           - Add preserveAspectRatio
+        
+        4. Create professional-looking axes:
+           - Properly styled grid lines
+           - Formatted tick values
+           - Rotated labels if needed
+           - Smooth transitions for updates
+        
+        5. Add rich interactivity:
+           - Detailed tooltips with all relevant data
+           - Smooth transitions and animations
+           - Highlight effects on hover
+           - Click interactions for additional details
+           - Zoom and brush functionality if appropriate
+        
+        6. Include accessibility features:
+           - ARIA attributes
+           - Role descriptions
+           - Keyboard navigation if applicable
+        
+        7. Add comprehensive error handling:
+           - Check for data existence and structure
+           - Provide fallbacks for missing values
+           - Visual feedback for errors
+        
+        The code must start with 'function createVisualization(data, svgElement) {{'
+        Return ONLY the complete JavaScript code with no explanations.
         """
         
-        logger.info("USING INITIAL CREATION PROMPT")
-    
-    # Log prompt length for debugging
-    logger.info(f"Prompt length: {len(prompt)} characters")
-    
-    try:
-        # Log API call for debugging
         logger.info(f"Calling OpenAI API with model: {model}")
         
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+        # API call with retry mechanism for rate limits
+        max_retries = 3
+        retry_delay = 2
         
-        d3_code = response.choices[0].message.content
+        for attempt in range(max_retries):
+            try:
+                response = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[{
+                        "role": "system",
+                        "content": "You are a D3.js expert. Generate only professional, production-ready visualization code with no explanations or markdown. Your code should be comprehensive, well-structured, include detailed configuration options, responsive design, smooth animations, rich interactivity, accessibility features, and thorough error handling."
+                    }, {
+                        "role": "user",
+                        "content": prompt
+                    }],
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                d3_code = response.choices[0].message.content.strip()
+                logger.info(f"Generated D3 code length: {len(d3_code)} characters")
+                
+                # Validate the generated code has the required function
+                if not d3_code.startswith("function createVisualization"):
+                    logger.warning("Generated code doesn't start with createVisualization function, fixing...")
+                    d3_code = clean_d3_response(d3_code)
+                
+                return d3_code
+                
+            except openai.error.RateLimitError:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Rate limit hit, retrying in {retry_delay} seconds (attempt {attempt+1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error("Rate limit exceeded after maximum retries")
+                    raise
+            except Exception as e:
+                logger.error(f"Error generating D3 code: {str(e)}")
+                logger.error(traceback.format_exc())
+                break
         
-        # Check if the response actually contains D3.js code
-        if "function createVisualization" not in d3_code:
-            logger.error("API response does not contain a createVisualization function")
-            d3_code = fix_missing_create_visualization(d3_code)
+        # Fallback mechanism if all API calls fail
+        logger.warning("Using fallback mechanism due to API failure")
+        raise Exception("Failed to generate visualization code after multiple attempts")
         
-        # Log code generation success
-        logger.info(f"Generated D3 code length: {len(d3_code)} characters")
-        
-        return d3_code
     except Exception as e:
-        logger.error(f"Error generating D3 code: {str(e)}")
+        logger.error(f"Error in generate_d3_code: {str(e)}")
         logger.error(traceback.format_exc())
-        return generate_fallback_visualization()
-
-def fix_missing_create_visualization(code):
-    """Wrap code in createVisualization function if needed."""
-    if "function createVisualization" not in code:
-        fixed_code = """function createVisualization(data, svgElement) {
-            // Auto-wrapped code
-            """ + code + """
-        }"""
-        return fixed_code
-    return code
+        raise
 
 def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> str:
     """
@@ -968,6 +519,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     Returns:
         str: Refined D3.js code, or the last attempt if refinement fails.
     """
+
     openai.api_key = api_key
     
     # Get model and parameters from environment variables or use defaults
@@ -976,7 +528,8 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
     for attempt in range(max_attempts):
-        if validate_d3_code(initial_code):
+        validation_result = validate_d3_code(initial_code)
+        if validation_result.get("valid", False):
             return initial_code
         
         refinement_prompt = f"""
@@ -992,13 +545,17 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         Return ONLY the corrected D3 code without any explanations or comments.
         """
         
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": refinement_prompt}],
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-        initial_code = clean_d3_response(response.choices[0].message.content)
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=[{"role": "user", "content": refinement_prompt}],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            initial_code = clean_d3_response(response.choices[0].message.content)
+        except Exception as e:
+            logger.error(f"Error in code refinement attempt {attempt+1}: {str(e)}")
+            continue
     
     # If we've exhausted our attempts, return the last attempt
     logger.warning("Failed to generate valid D3 code after maximum attempts")
@@ -1006,29 +563,39 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
 
 def clean_d3_response(response: str) -> str:
     """
-    Clean the LLM response to ensure it only contains D3 code.
+    Clean the LLM response to ensure it only contains valid D3 code.
     
     This function removes markdown formatting, non-JavaScript lines,
-    and ensures the code starts with the createVisualization function.
+    and ensures the code starts with the createVisualization function
+    and has proper function closure.
     
     Args:
         response (str): The raw response from the LLM.
     
     Returns:
-        str: Cleaned D3.js code.
+        str: Cleaned D3.js code with valid function structure.
     """
     # Remove any potential markdown code blocks
-    response = response.replace("```javascript", "").replace("```", "")
+    response = response.replace("```javascript", "").replace("```js", "").replace("```", "")
     
     # Remove any lines that don't look like JavaScript
     clean_lines = [line for line in response.split('\n') if line.strip() and not line.strip().startswith('#')]
+    clean_code = '\n'.join(clean_lines)
     
-    # Ensure the code starts with the createVisualization function
-    if not any(line.strip().startswith('function createVisualization') for line in clean_lines):
-        clean_lines.insert(0, 'function createVisualization(data, svgElement) {')
-        clean_lines.append('}')
+    # Check if code already has createVisualization function
+    if not clean_code.strip().startswith('function createVisualization'):
+        # If not, wrap the entire code in the function
+        clean_code = f'function createVisualization(data, svgElement) {{\n{clean_code}\n}}'
     
-    return '\n'.join(clean_lines)
+    # Ensure proper function closure
+    open_braces = clean_code.count('{')
+    close_braces = clean_code.count('}')
+    
+    if open_braces > close_braces:
+        # Add missing closing braces
+        clean_code += '\n' + ('}' * (open_braces - close_braces))
+    
+    return clean_code
 
 def display_visualization(d3_code: str) -> None:
     """
@@ -1040,73 +607,118 @@ def display_visualization(d3_code: str) -> None:
     # Generate a unique timestamp to prevent caching
     timestamp = int(time.time())
     
-    # Create HTML with the D3.js code
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <script src="https://d3js.org/d3.v7.min.js"></script>
-        <style>
-            #visualization {{
-                width: 100%;
-                height: 600px;
-                margin: 0;
-                padding: 0;
-            }}
-            
-            svg {{
-                width: 100%;
-                height: 100%;
-                background-color: white;
-            }}
-        </style>
-    </head>
-    <body>
-        <div id="visualization">
-            <svg id="viz-svg"></svg>
-        </div>
-        
-        <script>
-            // Debug data to console
-            console.log("Starting visualization render...");
-            
-            try {{
-                // The data will be populated from the DataFrame
-                const data = {json.dumps(st.session_state.json_data)};
-                
-                // Debug data
-                console.log("Data for visualization:", data);
-                
-                // Get the SVG element
-                const svgElement = d3.select("#viz-svg");
-                
-                // Clear any existing visualization
-                svgElement.selectAll("*").remove();
-                
-                // Initialize the visualization with the data
-                {d3_code}
-                
-                // Call the createVisualization function
-                createVisualization(data, svgElement);
-                
-                console.log("Visualization successfully rendered");
-            }} catch (error) {{
-                console.error("Error rendering visualization:", error);
-                document.getElementById("visualization").innerHTML = 
-                    `<div style="color: red; padding: 20px;">
-                        <h3>Error Rendering Visualization</h3>
-                        <p>${{error.message}}</p>
-                        <pre>${{error.stack}}</pre>
-                    </div>`;
-            }}
-        </script>
-    </body>
-    </html>
-    """
-    
     try:
-        # Use components.html to display the visualization
+        # Ensure we have the JSON data available
+        if 'json_data' not in st.session_state or st.session_state.json_data is None:
+            if 'preprocessed_df' in st.session_state and st.session_state.preprocessed_df is not None:
+                st.session_state.json_data = st.session_state.preprocessed_df.to_dict(orient='records')
+                logger.info(f"Generated json_data with {len(st.session_state.json_data)} records")
+            else:
+                raise ValueError("No data available for visualization")
+        
+        # Create HTML with the D3.js code and debugging
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <script src="https://d3js.org/d3.v7.min.js"></script>
+            <style>
+                #visualization {{
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
+                    margin: 0;
+                    padding: 0;
+                }}
+                
+                svg {{
+                    width: 100%;
+                    height: 100%;
+                    background-color: white;
+                }}
+                
+                .tooltip {{
+                    position: absolute;
+                    background: rgba(255, 255, 255, 0.95);
+                    padding: 10px;
+                    border-radius: 5px;
+                    box-shadow: 0 0 10px rgba(0,0,0,0.25);
+                    pointer-events: none;
+                    font-family: Arial, sans-serif;
+                    font-size: 12px;
+                    z-index: 10;
+                }}
+                
+                .error-message {{
+                    color: #d9534f;
+                    padding: 20px;
+                    border: 1px solid #d9534f;
+                    border-radius: 5px;
+                    background-color: #f9f2f2;
+                    margin: 20px;
+                    font-family: Arial, sans-serif;
+                }}
+            </style>
+        </head>
+        <body>
+            <div id="visualization">
+                <svg id="viz-svg"></svg>
+            </div>
+            
+            <script>
+                console.log("Starting visualization render at timestamp: {timestamp}");
+                
+                try {{
+                    // The data from the DataFrame
+                    const data = {json.dumps(st.session_state.json_data)};
+                    
+                    // Debug data and code
+                    console.log("Data for visualization:", data);
+                    console.log("D3 code length:", `{len(d3_code)}` + " characters");
+                    
+                    // Get the SVG element
+                    const svgElement = d3.select("#viz-svg");
+                    
+                    // Clear any existing visualization
+                    svgElement.selectAll("*").remove();
+                    
+                    // Add the D3 code
+                    {d3_code}
+                    
+                    // Call the createVisualization function
+                    try {{
+                        if (typeof createVisualization === 'function') {{
+                            createVisualization(data, svgElement);
+                            console.log("Visualization successfully rendered");
+                        }} else {{
+                            throw new Error("createVisualization function not found in the generated code");
+                        }}
+                    }} catch (funcError) {{
+                        console.error("Error calling createVisualization:", funcError);
+                        document.getElementById("visualization").innerHTML = 
+                            `<div class="error-message">
+                                <h3>Error Executing Visualization Function</h3>
+                                <p>${{funcError.message}}</p>
+                                <pre>${{funcError.stack}}</pre>
+                            </div>`;
+                    }}
+                }} catch (error) {{
+                    console.error("Error rendering visualization:", error);
+                    document.getElementById("visualization").innerHTML = 
+                        `<div class="error-message">
+                            <h3>Error Rendering Visualization</h3>
+                            <p>${{error.message}}</p>
+                            <pre>${{error.stack}}</pre>
+                        </div>`;
+                }}
+            </script>
+        </body>
+        </html>
+        """
+        
+        # Use components.html to display the visualization with proper height
         components.html(
             html_content,
             height=600,
@@ -1123,77 +735,6 @@ def display_visualization(d3_code: str) -> None:
         Error displaying visualization. Please check the browser console for details.
         Error: {str(e)}
         """)
-
-def generate_fallback_visualization() -> str:
-    """
-    Generate a fallback visualization if the LLM fails.
-    
-    This function creates a simple bar chart using D3.js as a fallback
-    when the main visualization generation process fails.
-    
-    Returns:
-        str: D3.js code for a simple bar chart visualization.
-    """
-    logger.info("Generating fallback visualization")
-    
-    fallback_code = """
-    function createVisualization(data, svgElement) {
-        const margin = { top: 20, right: 20, bottom: 50, left: 50 };
-        const width = 800 - margin.left - margin.right;
-        const height = 500 - margin.top - margin.bottom;
-        
-        svgElement.attr("width", width + margin.left + margin.right)
-                   .attr("height", height + margin.top + margin.bottom);
-        
-        const svg = svgElement.append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
-
-        // Assuming the first column is for x-axis and second for y-axis
-        const xKey = Object.keys(data[0])[0];
-        const yKey = Object.keys(data[0])[1];
-
-        const xScale = d3.scaleBand()
-            .domain(data.map(d => d[xKey]))
-            .range([0, width])
-            .padding(0.1);
-
-        const yScale = d3.scaleLinear()
-            .domain([0, d3.max(data, d => +d[yKey])])
-            .range([height, 0]);
-
-        svg.selectAll("rect")
-            .data(data)
-            .join("rect")
-            .attr("x", d => xScale(d[xKey]))
-            .attr("y", d => yScale(+d[yKey]))
-            .attr("width", xScale.bandwidth())
-            .attr("height", d => height - yScale(+d[yKey]))
-            .attr("fill", "steelblue");
-
-        svg.append("g")
-            .attr("transform", `translate(0, ${height})`)
-            .call(d3.axisBottom(xScale));
-
-        svg.append("g")
-            .call(d3.axisLeft(yScale));
-
-        svg.append("text")
-            .attr("x", width / 2)
-            .attr("y", height + margin.top + 20)
-            .attr("text-anchor", "middle")
-            .text(xKey);
-
-        svg.append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("x", -height / 2)
-            .attr("y", -margin.left + 20)
-            .attr("text-anchor", "middle")
-            .text(yKey);
-    }
-    """
-    
-    logger.info("Fallback visualization generated successfully")
-    return fallback_code
 
 def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
@@ -1395,21 +936,42 @@ def main():
         st.info("Please upload both CSV files to visualize your data")
 
 def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
-    """Generate D3 code with stronger instructions to force changes."""
-    # Create a stronger prompt that emphasizes the need for changes
+    """
+    Generate D3.js code with forced changes when the regular generation
+    produces identical code to what's currently displayed.
+    
+    Args:
+        df (pd.DataFrame): The preprocessed DataFrame.
+        api_key (str): OpenAI API key.
+        user_input (str): User's request for visualization modifications.
+        current_code (str): The current D3.js code being displayed.
+    
+    Returns:
+        str: New D3.js code with forced changes.
+    """
+    if not user_input or user_input.strip() == "":
+        logger.warning("Empty user input for forced changes, returning current code")
+        return current_code
+    
     data_sample = df.head(5).to_dict(orient='records')
     schema = df.dtypes.to_dict()
     schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
     
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini")
+    openai.api_key = api_key
+    
+    # Get model and parameters
+    model = os.getenv("DEFAULT_MODEL", "gpt-4")
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
-    temperature = float(os.getenv("TEMPERATURE", "0.9"))  # Higher temperature for more variation
+    temperature = float(os.getenv("TEMPERATURE", "0.9"))  # Higher temperature for more variability
     
+    # Create a prompt that explicitly requests significant changes
     prompt = f"""
-    # URGENT VISUALIZATION MODIFICATION REQUEST
+    # D3.js VISUALIZATION REDESIGN - SIGNIFICANT CHANGES REQUIRED
     
-    ## USER REQUEST: 
-    "{user_input}"
+    The current visualization needs significant changes based on this user request:
+    
+    ## USER REQUEST (MUST BE ADDRESSED):
+    {user_input}
     
     ## CURRENT CODE (MUST BE CHANGED):
     ```javascript
@@ -1424,32 +986,69 @@ def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
     {json.dumps(data_sample[:5], indent=2)}
     ```
     
-    ## CRITICAL INSTRUCTIONS:
-    1. YOU MUST SIGNIFICANTLY MODIFY THE VISUALIZATION - THE CURRENT VERSION IS UNACCEPTABLE
-    2. Make VISIBLE and OBVIOUS changes according to the user's request
-    3. Consider changing: colors, chart type, layout, labels, interactions, etc.
-    4. Return ONLY the complete JavaScript code with createVisualization function
-    5. DO NOT return the same or similar code - dramatic changes are required
+    ## REQUIREMENTS:
+    1. Create a COMPLETELY DIFFERENT visualization that fulfills the user request
+    2. Do NOT return code similar to the current code
+    3. Change the visualization type, layout, or core approach
+    4. Implement responsive design and proper error handling
+    5. Add detailed comments explaining your visualization logic
     
-    YOUR RESPONSE MUST BE COMPLETELY DIFFERENT FROM THE CURRENT CODE.
+    The code must start with 'function createVisualization(data, svgElement) {{' 
+    Return ONLY the complete JavaScript code.
     """
     
     logger.info("Using forced change prompt due to identical code generation")
     
     try:
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
+        # Implement retry mechanism for API calls
+        max_retries = 3
+        retry_delay = 2
         
-        d3_code = response.choices[0].message.content
-        logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
+        for attempt in range(max_retries):
+            try:
+                response = openai.ChatCompletion.create(
+                    model=model,
+                    messages=[{
+                        "role": "system",
+                        "content": "You are a D3.js expert. The user needs a COMPLETELY NEW visualization that is significantly different from their current one. Be creative and make substantial changes."
+                    }, {
+                        "role": "user",
+                        "content": prompt
+                    }],
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                
+                d3_code = clean_d3_response(response.choices[0].message.content)
+                logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters")
+                
+                # Verify the new code is actually different
+                if d3_code.strip() == current_code.strip():
+                    logger.warning("Generated code is still identical, retrying with higher temperature")
+                    temperature += 0.1  # Increase temperature for more variability
+                    continue
+                
+                return d3_code
+                
+            except openai.error.RateLimitError:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Rate limit hit, retrying in {retry_delay} seconds (attempt {attempt+1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logger.error("Rate limit exceeded after maximum retries")
+                    return current_code
+            except Exception as e:
+                logger.error(f"Error in forced code generation: {str(e)}")
+                logger.error(traceback.format_exc())
+                break
         
-        return d3_code
+        # If all attempts failed, return current code with a warning message
+        logger.error("Failed to generate different code after multiple attempts")
+        return current_code
     except Exception as e:
         logger.error(f"Error in forced code generation: {str(e)}")
+        logger.error(traceback.format_exc())
         return current_code
 
 if __name__ == "__main__":
