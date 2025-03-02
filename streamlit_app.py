@@ -198,122 +198,36 @@ def preprocess_data(file1, file2) -> pd.DataFrame:
 
 def validate_d3_code(code: str) -> dict:
     """
-    Perform comprehensive validation on the generated D3 code.
+    Perform validation on the generated D3 code.
     
-    This function checks for the presence of key D3.js elements, features, and best practices.
-    It returns a detailed report of what features are present and what might be missing.
+    This function checks for the presence of key D3.js elements and features.
     
     Args:
         code (str): The D3.js code to validate.
     
     Returns:
-        dict: Validation results with details on what features are present/missing.
+        dict: Validation results with 'valid' boolean and 'missing_features' list.
     """
-    # Initialize validation results
-    results = {
-        "valid": True,
-        "missing_features": [],
-        "present_features": [],
-        "balanced_braces": code.count('{') == code.count('}'),
-        "details": {}
-    }
+    missing_features = []
     
-    # Define feature categories and patterns to check
-    feature_checks = {
-        "Basic Structure": [
-            {"name": "createVisualization function", "pattern": r'function\s+createVisualization\s*\(data,\s*svgElement\)\s*{', "required": True},
-            {"name": "Clear previous content", "pattern": r'svgElement\.selectAll\s*\(\s*["\']\*["\']\s*\)\.remove\s*\(\s*\)', "required": True},
-            {"name": "Configuration object", "pattern": r'const\s+config\s*=\s*\{', "required": True},
-            {"name": "Responsive SVG setup", "pattern": r'viewBox|preserveAspectRatio', "required": True}
-        ],
-        "Layout": [
-            {"name": "Margins configuration", "pattern": r'margin\s*:\s*\{\s*top|bottom|left|right', "required": True},
-            {"name": "Responsive dimensions", "pattern": r'containerWidth|window\.innerWidth|resize', "required": True},
-            {"name": "Background styling", "pattern": r'append\s*\(\s*["\'](rect)["\']\s*\).*fill', "required": False},
-            {"name": "Window resize handler", "pattern": r'window.*resize|resize.*window', "required": True}
-        ],
-        "Data Processing": [
-            {"name": "Data grouping", "pattern": r'd3\.group|group\s*\(|nest\s*\(', "required": False},
-            {"name": "Numeric column detection", "pattern": r'!isNaN|typeof.*number|parseFloat|parseInt', "required": False},
-            {"name": "Default axes selection", "pattern": r'[xy]Key\s*=', "required": True}
-        ],
-        "Scales and Axes": [
-            {"name": "Scale creation", "pattern": r'd3\.scale(Band|Linear|Time|Ordinal|Log)', "required": True},
-            {"name": "Domain padding", "pattern": r'domain\s*\(\s*\[\s*0\s*,\s*.*\*\s*[0-9.]+\s*\]\s*\)', "required": False},
-            {"name": "Grid lines", "pattern": r'tickSize\s*\(\s*-|grid|tick.*line', "required": True},
-            {"name": "Axis formatting", "pattern": r'tickFormat|format\s*\(', "required": False},
-            {"name": "Axis styling", "pattern": r'axis.*selectAll\(.*\)\.attr', "required": True}
-        ],
-        "Visualization Elements": [
-            {"name": "Data binding", "pattern": r'selectAll\s*\(\s*["\']\..*["\']\s*\)\.data\s*\(\s*data\s*\)', "required": True},
-            {"name": "Color scales", "pattern": r'd3\.scheme|scaleOrdinal|colors', "required": True},
-            {"name": "Element styling", "pattern": r'attr\s*\(\s*["\'](fill|stroke|rx|ry)', "required": True},
-            {"name": "Size scaling", "pattern": r'sizeScale|radius|r\s*\(', "required": False}
-        ],
-        "Interactivity": [
-            {"name": "Tooltips", "pattern": r'tooltip|mouseover|mouseout|hover', "required": True},
-            {"name": "Highlighting effects", "pattern": r'brighter|darker|highlight|mouseover.*transition', "required": True},
-            {"name": "Click interactions", "pattern": r'click|onclick', "required": True},
-            {"name": "Crosshair", "pattern": r'crosshair|guideline', "required": False}
-        ],
-        "Advanced Interactions": [
-            {"name": "Zoom functionality", "pattern": r'd3\.zoom|zoom\s*\(', "required": True},
-            {"name": "Brush component", "pattern": r'd3\.brush|brush\s*\(', "required": True},
-            {"name": "Reset button", "pattern": r'reset|clear.*selection', "required": True},
-            {"name": "Axis selection UI", "pattern": r'dropdown|select|option|change.*axis', "required": True}
-        ],
-        "Animations": [
-            {"name": "Entrance animations", "pattern": r'transition\s*\(\s*\).*duration', "required": True},
-            {"name": "Staggered animations", "pattern": r'delay\s*\(\s*\(\s*d\s*,\s*i\s*\)', "required": True},
-            {"name": "Update transitions", "pattern": r'update.*transition|transition.*duration', "required": True},
-            {"name": "Continuous animations", "pattern": r'pulse|loop|timer|interval', "required": False}
-        ],
-        "UI Components": [
-            {"name": "Interactive legend", "pattern": r'legend.*click|toggle.*legend', "required": True},
-            {"name": "Dynamic title", "pattern": r'title.*text\s*\(|chart.*title', "required": True},
-            {"name": "Axis labels", "pattern": r'axis.*label|label.*axis', "required": True},
-            {"name": "UI controls", "pattern": r'dropdown|button|control|select', "required": True}
-        ],
-        "Accessibility": [
-            {"name": "ARIA attributes", "pattern": r'aria-|role=', "required": True},
-            {"name": "Keyboard navigation", "pattern": r'keydown|keyup|keypress', "required": False}
-        ],
-        "Performance": [
-            {"name": "Clip path", "pattern": r'clipPath|clip-path', "required": True},
-            {"name": "Efficient updates", "pattern": r'update.*bars|update.*visualization', "required": True}
-        ],
-        "Error Handling": [
-            {"name": "Data validation", "pattern": r'if\s*\(\s*!data|data\s*==\s*null|data\s*===\s*null|data\s*\.\s*length\s*[<=>]', "required": False},
-            {"name": "Edge cases", "pattern": r'try|catch|if\s*\(|else\s*\{', "required": False}
-        ]
-    }
-    
-    # Check for each feature
-    results["details"] = {}
-    for category, checks in feature_checks.items():
-        results["details"][category] = {}
-        for check in checks:
-            is_present = bool(re.search(check["pattern"], code))
-            results["details"][category][check["name"]] = is_present
-            
-            if check["required"] and not is_present:
-                results["valid"] = False
-                results["missing_features"].append(f"{category}: {check['name']}")
-            elif is_present:
-                results["present_features"].append(f"{category}: {check['name']}")
+    # Check if the code defines the createVisualization function
+    if not re.search(r'function\s+createVisualization\s*\(data,\s*svgElement\)\s*{', code):
+        missing_features.append("Basic Structure: createVisualization function")
     
     # Check for basic D3 v7 method calls
     d3_methods = ['d3.select', 'd3.scaleLinear', 'd3.axisBottom', 'd3.axisLeft']
     if not any(method in code for method in d3_methods):
-        results["valid"] = False
-        results["missing_features"].append("Basic D3 methods")
+        missing_features.append("Basic Structure: D3 method calls")
     
     # Check for balanced braces
-    if not results["balanced_braces"]:
-        results["valid"] = False
-        results["missing_features"].append("Balanced braces")
+    if code.count('{') != code.count('}'):
+        missing_features.append("Basic Structure: Balanced braces")
     
-    return results
+    # Return dictionary with validation results
+    return {
+        "valid": len(missing_features) == 0,
+        "missing_features": missing_features
+    }
 
 def generate_improvement_instructions(validation_results: dict) -> str:
     """
@@ -898,6 +812,11 @@ function createVisualization(data, svgElement) {
     .attr("font-size", "12px")
     .text("Update");
 }
+"""
+    }
+    
+    # Return the requested template or a default one if not found
+    return templates.get(viz_type, templates.get("scatterplot", "function createVisualization(data, svgElement) {}"))
 
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
