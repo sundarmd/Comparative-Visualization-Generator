@@ -1148,12 +1148,12 @@ def display_visualization(d3_code: str) -> None:
     file_url = f"file://{viz_path.absolute()}"
     
     try:
-        # Use iframe to display the visualization
+        # Use iframe to display the visualization with integer height and width
         components.iframe(
             src=file_url,
-            height=600,
-            scrolling=True,
-            width="100%"
+            height=600,  # Integer value
+            width=None,  # Let Streamlit determine the width
+            scrolling=True
         )
         
         # Log success
