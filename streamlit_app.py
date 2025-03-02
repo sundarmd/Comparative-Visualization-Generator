@@ -1032,7 +1032,7 @@ def clean_d3_response(response: str) -> str:
 
 def display_visualization(d3_code: str) -> None:
     """
-    Display the D3.js visualization in the Streamlit app using iframe.
+    Display the D3.js visualization in the Streamlit app using components.html.
     
     Args:
         d3_code (str): The D3.js code to display.
@@ -1047,20 +1047,10 @@ def display_visualization(d3_code: str) -> None:
     <head>
         <meta charset="utf-8">
         <script src="https://d3js.org/d3.v7.min.js"></script>
-        <script src="https://unpkg.com/d3-simple-slider"></script>
-        <script src="https://cdn.jsdelivr.net/npm/d3-legend@2.25.6/d3-legend.min.js"></script>
         <style>
-            body, html {{
-                width: 100%;
-                height: 100%;
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-            }}
-            
             #visualization {{
                 width: 100%;
-                height: 100%;
+                height: 600px;
                 margin: 0;
                 padding: 0;
             }}
@@ -1069,17 +1059,6 @@ def display_visualization(d3_code: str) -> None:
                 width: 100%;
                 height: 100%;
                 background-color: white;
-            }}
-            
-            .tooltip {{
-                position: absolute;
-                background-color: rgba(255, 255, 255, 0.9);
-                border: 1px solid #ddd;
-                padding: 10px;
-                border-radius: 4px;
-                pointer-events: none;
-                font-size: 12px;
-                z-index: 1000;
             }}
         </style>
     </head>
@@ -1092,33 +1071,24 @@ def display_visualization(d3_code: str) -> None:
             // Debug data to console
             console.log("Starting visualization render...");
             
-            // The data will be populated from the DataFrame
-            const data = {st.session_state.json_data};
-            
-            // Debug data
-            console.log("Data for visualization:", data);
-            
-            // Get the SVG element
-            const svgElement = d3.select("#viz-svg");
-            
-            // Clear any existing visualization
-            svgElement.selectAll("*").remove();
-            
             try {{
+                // The data will be populated from the DataFrame
+                const data = {json.dumps(st.session_state.json_data)};
+                
+                // Debug data
+                console.log("Data for visualization:", data);
+                
+                // Get the SVG element
+                const svgElement = d3.select("#viz-svg");
+                
+                // Clear any existing visualization
+                svgElement.selectAll("*").remove();
+                
                 // Initialize the visualization with the data
                 {d3_code}
                 
                 // Call the createVisualization function
                 createVisualization(data, svgElement);
-                
-                // Add a resize handler to make the visualization responsive
-                window.addEventListener('resize', function() {{
-                    // Clear existing visualization
-                    svgElement.selectAll("*").remove();
-                    
-                    // Redraw with new dimensions
-                    createVisualization(data, svgElement);
-                }});
                 
                 console.log("Visualization successfully rendered");
             }} catch (error) {{
@@ -1135,29 +1105,16 @@ def display_visualization(d3_code: str) -> None:
     </html>
     """
     
-    # Create a temporary directory if it doesn't exist
-    static_dir = Path(tempfile.gettempdir()) / "streamlit_viz"
-    static_dir.mkdir(exist_ok=True)
-    
-    # Create a temporary HTML file with timestamp to prevent caching
-    viz_path = static_dir / f"visualization_{timestamp}.html"
-    with open(viz_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-    
-    # Convert the file path to a URL
-    file_url = f"file://{viz_path.absolute()}"
-    
     try:
-        # Use iframe to display the visualization with integer height and width
-        components.iframe(
-            src=file_url,
-            height=600,  # Integer value
-            width=None,  # Let Streamlit determine the width
+        # Use components.html to display the visualization
+        components.html(
+            html_content,
+            height=600,
             scrolling=True
         )
         
         # Log success
-        logger.info(f"Visualization displayed with iframe from: {file_url}")
+        logger.info("Visualization displayed successfully")
         
     except Exception as e:
         # Log error and display fallback message
