@@ -1074,9 +1074,6 @@ def display_visualization(d3_code: str):
     """
     Display the D3.js visualization using an iframe and add a download button.
     """
-    # Add a timestamp to prevent caching
-    timestamp = int(time.time())
-    
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -1087,11 +1084,13 @@ def display_visualization(d3_code: str):
             #visualization {{
                 width: 100%;
                 height: 100vh;
-                overflow: hidden;
+                overflow: visible;
+                border: 1px solid #eee;
             }}
             svg {{
                 width: 100%;
                 height: 100%;
+                display: block;
             }}
             .tooltip {{
                 position: absolute;
@@ -1105,42 +1104,82 @@ def display_visualization(d3_code: str):
     </head>
     <body>
         <div id="visualization"></div>
+        <div id="error-display" style="color: red; padding: 10px; display: none;"></div>
+        
         <script>
-            {d3_code}
+            // Error handling function
+            function handleError(error) {{
+                console.error("Visualization error:", error);
+                document.getElementById("error-display").textContent = "Error: " + error.message;
+                document.getElementById("error-display").style.display = "block";
+            }}
             
-            // Create the SVG element
-            const svgElement = d3.select("#visualization")
-                .append("svg")
-                .attr("width", 960)
-                .attr("height", 540)
-                .attr("viewBox", "0 0 960 540")
-                .attr("preserveAspectRatio", "xMidYMid meet");
-            
-            // Get the data from the parent window
-            const vizData = JSON.parse(decodeURIComponent(window.location.hash.slice(1)));
-            
-            // Call the createVisualization function
-            createVisualization(vizData, svgElement);
-
-            // Make the visualization responsive
-            window.addEventListener('resize', function() {{
-                const width = window.innerWidth;
-                const height = window.innerHeight;
-                svgElement.attr("width", width).attr("height", height);
-                svgElement.attr("viewBox", `0 0 ${{width}} ${{height}}`);
-                createVisualization(vizData, svgElement);
-            }});
+            try {{
+                // Create the SVG element
+                const svgElement = d3.select("#visualization")
+                    .append("svg")
+                    .attr("width", "100%")
+                    .attr("height", "100%")
+                    .attr("viewBox", "0 0 960 540")
+                    .attr("preserveAspectRatio", "xMidYMid meet");
+                
+                // Get the data from the URL hash
+                let vizData;
+                try {{
+                    const hashData = window.location.hash.slice(1).split('&')[0];
+                    vizData = JSON.parse(decodeURIComponent(hashData));
+                    console.log("Data loaded successfully. First record:", vizData[0]);
+                }} catch (dataError) {{
+                    handleError(new Error("Failed to parse data: " + dataError.message));
+                }}
+                
+                // Define the D3 visualization code
+                {d3_code}
+                
+                // Call the createVisualization function if data is available
+                if (vizData && vizData.length > 0) {{
+                    console.log("Calling createVisualization with", vizData.length, "records");
+                    createVisualization(vizData, svgElement);
+                    
+                    // Make the visualization responsive
+                    window.addEventListener('resize', function() {{
+                        console.log("Window resized");
+                        // Clear previous content
+                        svgElement.selectAll("*").remove();
+                        // Recreate visualization
+                        createVisualization(vizData, svgElement);
+                    }});
+                }} else {{
+                    handleError(new Error("No data available or data is empty"));
+                }}
+            }} catch (error) {{
+                handleError(error);
+            }}
         </script>
     </body>
     </html>
     """
     
     # Encode the data to pass it to the iframe
-    encoded_data = urllib.parse.quote(json.dumps(st.session_state.preprocessed_df.to_dict(orient='records')))
-    
-    # Display the iframe with the encoded data in the URL hash and a timestamp to prevent caching
-    st.components.v1.iframe(f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}&t={timestamp}", 
-                            width=960, height=540, scrolling=True)
+    try:
+        # Convert DataFrame to records and limit to 1000 records if too large
+        df_records = st.session_state.preprocessed_df.to_dict(orient='records')
+        if len(df_records) > 1000:
+            st.warning("Dataset is large. Limiting visualization to first 1000 records for performance.")
+            df_records = df_records[:1000]
+        
+        encoded_data = urllib.parse.quote(json.dumps(df_records))
+        
+        # Display the iframe with the encoded data in the URL hash
+        st.components.v1.iframe(
+            f"data:text/html;charset=utf-8,{urllib.parse.quote(html_content)}#{encoded_data}", 
+            width=960, 
+            height=540, 
+            scrolling=True
+        )
+    except Exception as e:
+        st.error(f"Error displaying visualization: {str(e)}")
+        st.code(traceback.format_exc())
 
 def generate_fallback_visualization() -> str:
     """
