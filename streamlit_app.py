@@ -1209,29 +1209,31 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
         
         # Render in the appropriate place with proper height
         if placeholder is not None:
-            # When using a placeholder, create a container inside it
+            # When using a placeholder, use it directly
             with placeholder:
-                # Create a container with a unique key
-                viz_container = st.empty()
-                # Use components.html inside the container without the key parameter
-                viz_container.components.html(
+                components.html(
                     html_content,
                     height=VISUALIZATION_HEIGHT + 50,  # Add some padding
                     scrolling=True
                 )
                 logger.info("Visualization displayed in provided placeholder")
         else:
-            # Create a container with a unique key based on the viz_key from session state
-            viz_key = f"viz_{st.session_state.viz_key}_{timestamp}"
-            viz_container = st.container()
-            # Use components.html to display the visualization in the current position without the key parameter
-            with viz_container:
+            # Use the container reuse pattern as specified in architecture.md
+            viz_container_key = f"viz_container_{st.session_state.viz_key}"
+            viz_container = st.session_state.get(viz_container_key, st.empty())
+            
+            # Store the container in session state if it's newly created
+            if viz_container_key not in st.session_state:
+                st.session_state[viz_container_key] = viz_container
+            
+            # Use the container
+            with viz_container.container():
                 components.html(
                     html_content,
                     height=VISUALIZATION_HEIGHT + 50,  # Add some padding
                     scrolling=True
                 )
-            logger.info("Visualization displayed in current position")
+            logger.info("Visualization displayed in consistent container")
         
         # Log success
         logger.info("Visualization displayed successfully")
