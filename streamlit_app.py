@@ -461,7 +461,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
             openai.api_key = api_key
         
         # Get model and parameters
-        model = os.getenv("DEFAULT_MODEL", "gpt-4")
+        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
         max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
         temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
@@ -507,8 +507,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Formatted tick values
            - Rotated labels if needed
            - Smooth transitions for updates
-           - IMPORTANT: Ensure axes are properly aligned with the visualization by using margin transforms
-           - Create a container group for all elements and transform it using margins
+           - IMPORTANT: Ensure axes are aligned with the visualization by using a consistent transformation
+           - Create a container group (g element) for both axes and visualization that is transformed using margins
         
         5. Add rich interactivity:
            - Detailed tooltips with all relevant data
@@ -533,6 +533,14 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
         - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
         - window.safeD3.createAxesWithLabels(svgElement, xScale, yScale, options) - Creates properly positioned axes with labels
+        
+        ## AXES ALIGNMENT
+        To ensure your axes are properly aligned with the visualization:
+        1. Create a main container group: `const g = svgElement.append("g").attr("transform", translate(margin.left, margin.top))`
+        2. Create an axes container within this group: `const axesG = g.append("g").attr("class", "axes-container")`
+        3. Add the x-axis at the bottom of the chart: `axesG.append("g").attr("class", "x-axis").attr("transform", translate(0, height))`
+        4. Add the y-axis at the left of the chart: `axesG.append("g").attr("class", "y-axis")`
+        5. Add visualization elements to the same container g
         
         ## OUTPUT RULES (CRITICALLY IMPORTANT):
         - The code MUST start with 'function createVisualization(data, svgElement) {{'
@@ -1118,85 +1126,117 @@ def get_visualization_html(d3_code: str) -> str:
                     }}
                 }},
                 
-                // Helper to create properly formatted axes with labels
-                createAxesWithLabels: function(svgElement, xScale, yScale, options = {{}}) {{
-                    const defaults = {{
-                        width: 600,
-                        height: 400,
-                        margin: {{top: 40, right: 40, bottom: 40, left: 40}},
-                        xLabel: "X Axis",
-                        yLabel: "Y Axis",
-                        ticksX: 5,
-                        ticksY: 5
-                    }};
-                    
-                    // Merge options with defaults
-                    const config = {{...defaults, ...options}};
-                    if (options.margin) {{
-                        config.margin = {{...defaults.margin, ...options.margin}};
-                    }}
-                    
+                // Create properly positioned axes with labels
+                createAxesWithLabels: function(svgElement, xScale, yScale, options) {{
                     try {{
-                        // Verify scales
-                        const safeXScale = this.verifyScale(xScale);
-                        const safeYScale = this.verifyScale(yScale);
-                        
-                        // Create group for axes if not already present
-                        let g = svgElement.select("g.axes-container");
-                        if (g.empty()) {{
-                            g = svgElement.append("g")
-                                .attr("class", "axes-container")
-                                .attr("transform", `translate(${{config.margin.left}},${{config.margin.top}})`);
-                        }}
-                        
-                        // Calculate inner dimensions
-                        const innerWidth = config.width - config.margin.left - config.margin.right;
-                        const innerHeight = config.height - config.margin.top - config.margin.bottom;
-                        
-                        // Create and add x-axis
-                        const xAxis = this.createAxis(safeXScale, 'bottom', config.ticksX);
-                        const xAxisG = g.append("g")
-                            .attr("class", "x-axis")
-                            .attr("transform", `translate(0,${{innerHeight}})`)
-                            .call(xAxis);
-                        
-                        // Add x-axis label
-                        xAxisG.append("text")
-                            .attr("class", "x-axis-label")
-                            .attr("x", innerWidth / 2)
-                            .attr("y", 35)
-                            .attr("fill", "black")
-                            .attr("text-anchor", "middle")
-                            .text(config.xLabel);
-                        
-                        // Create and add y-axis
-                        const yAxis = this.createAxis(safeYScale, 'left', config.ticksY);
-                        const yAxisG = g.append("g")
-                            .attr("class", "y-axis")
-                            .call(yAxis);
-                        
-                        // Add y-axis label
-                        yAxisG.append("text")
-                            .attr("class", "y-axis-label")
-                            .attr("transform", "rotate(-90)")
-                            .attr("x", -innerHeight / 2)
-                            .attr("y", -35)
-                            .attr("fill", "black")
-                            .attr("text-anchor", "middle")
-                            .text(config.yLabel);
-                        
-                        return {{
-                            xAxis: xAxisG,
-                            yAxis: yAxisG,
-                            innerWidth: innerWidth,
-                            innerHeight: innerHeight,
-                            g: g
+                        // Default configuration
+                        const defaults = {{
+                            margin: {{top: 40, right: 40, bottom: 60, left: 60}},
+                            width: 800,
+                            height: 500,
+                            xLabel: "X Axis",
+                            yLabel: "Y Axis",
+                            ticksX: 5,
+                            ticksY: 5
                         }};
-                    }} catch (e) {{
-                        console.warn("Error creating axes with labels:", e);
-                        return null;
+                    
+                        // Merge options with defaults
+                        const config = {{...defaults, ...options}};
+                        if (options && options.margin) {{
+                            config.margin = {{...defaults.margin, ...options.margin}};
+                        }}
+                    
+                        try {{
+                            // Verify scales
+                            if (!xScale || typeof xScale !== 'function' || typeof xScale.domain !== 'function') {{
+                                xScale = d3.scaleLinear().domain([0, 100]).range([0, config.width]);
+                            }}
+                            
+                            if (!yScale || typeof yScale !== 'function' || typeof yScale.domain !== 'function') {{
+                                yScale = d3.scaleLinear().domain([0, 100]).range([config.height, 0]);
+                            }}
+                            
+                            // Get dimensions from the SVG if not provided
+                            let width = options && options.width ? options.width : (+svgElement.attr("width") || 800);
+                            let height = options && options.height ? options.height : (+svgElement.attr("height") || 500);
+                            
+                            // Calculate inner dimensions
+                            const innerWidth = width - config.margin.left - config.margin.right;
+                            const innerHeight = height - config.margin.top - config.margin.bottom;
+                            
+                            // Create main container group with margins applied
+                            const g = svgElement.append("g")
+                                .attr("class", "axes-container")
+                                .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")");
+                            
+                            // Create x-axis
+                            const xAxis = d3.axisBottom(xScale).ticks(config.ticksX);
+                            const xAxisG = g.append("g")
+                                .attr("class", "x-axis")
+                                .attr("transform", "translate(0," + innerHeight + ")")
+                                .call(xAxis);
+                            
+                            // Add x-axis label
+                            xAxisG.append("text")
+                                .attr("class", "x-axis-label")
+                                .attr("x", innerWidth / 2)
+                                .attr("y", 40)
+                                .attr("fill", "black")
+                                .attr("text-anchor", "middle")
+                                .text(config.xLabel);
+                            
+                            // Create y-axis
+                            const yAxis = d3.axisLeft(yScale).ticks(config.ticksY);
+                            const yAxisG = g.append("g")
+                                .attr("class", "y-axis")
+                                .call(yAxis);
+                            
+                            // Add y-axis label
+                            yAxisG.append("text")
+                                .attr("class", "y-axis-label")
+                                .attr("transform", "rotate(-90)")
+                                .attr("x", -innerHeight / 2)
+                                .attr("y", -40)
+                                .attr("fill", "black")
+                                .attr("text-anchor", "middle")
+                                .text(config.yLabel);
+                            
+                            // Return references to axes and dimensions
+                            return {{
+                                container: g,
+                                xAxis: xAxisG,
+                                yAxis: yAxisG,
+                                dimensions: {{
+                                    width: innerWidth,
+                                    height: innerHeight,
+                                    margin: config.margin
+                                }}
+                            }};
+                        }} catch (innerError) {{
+                            console.error("Error creating axes:", innerError);
+                            // Create a minimal fallback
+                            const g = svgElement.append("g")
+                                .attr("class", "axes-container-fallback")
+                                .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")");
+                            
+                            // Return minimal container
+                            return {{
+                                container: g,
+                                dimensions: {{
+                                    width: config.width - config.margin.left - config.margin.right,
+                                    height: config.height - config.margin.top - config.margin.bottom,
+                                    margin: config.margin
+                                }}
+                            }};
+                        }}
+                    }} catch (error) {{
+                        console.error("Fatal error creating axes with labels:", error);
+                        return {{
+                            container: svgElement.append("g"),
+                            dimensions: {{ width: 500, height: 300, margin: defaults.margin }}
+                        }};
                     }}
-                }}
+                }},
             }};
             
             // General purpose D3 operation wrapper
@@ -2159,19 +2199,39 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         # Ensure the code is different by indicating that requirement in the prompt
         logger.info("Requesting new D3 code with forced changes from OpenAI API")
         
-        # Call the OpenAI API
-        response = openai.ChatCompletion.create(
-            model=os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18"),
-            messages=[
-                {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=3500
-        )
+        # Get model and parameters
+        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+        max_tokens = int(os.getenv("MAX_TOKENS", "3500"))
+        temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
-        # Extract the code from the response
-        new_code = response.choices[0].message.content.strip()
+        # Call the OpenAI API with version check
+        if OPENAI_API_VERSION == "v1":
+            client = OpenAI(api_key=api_key)
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            new_code = response.choices[0].message.content.strip()
+        else:
+            openai.api_key = api_key
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            new_code = response.choices[0].message.content.strip()
+        
+        # Log the response for debugging
+        logger.info(f"Received response from OpenAI API, code length: {len(new_code)}")
         
         # Ensure we're only returning JavaScript code (remove markdown backticks if present)
         new_code = clean_d3_response(new_code)
