@@ -461,7 +461,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
             openai.api_key = api_key
         
         # Get model and parameters
-        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+        model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
         max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
         temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
@@ -646,7 +646,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
         openai.api_key = api_key
     
     # Get model and parameters from environment variables or use defaults
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
@@ -1768,7 +1768,7 @@ def main():
     
     
     # Display model information in a less prominent place if needed
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+    model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
     
     st.header("Upload CSV Files")
     col1, col2 = st.columns(2)
@@ -2200,7 +2200,7 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         logger.info("Requesting new D3 code with forced changes from OpenAI API")
         
         # Get model and parameters
-        model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
+        model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
         max_tokens = int(os.getenv("MAX_TOKENS", "3500"))
         temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
