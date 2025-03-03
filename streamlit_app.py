@@ -807,442 +807,544 @@ def display_visualization(d3_code: str, placeholder=None) -> None:
     # Generate a unique timestamp to prevent caching
     timestamp = int(time.time())
     
-    try:
-        # Ensure we have the JSON data available
-        if 'json_data' not in st.session_state or st.session_state.json_data is None:
-            if 'preprocessed_df' in st.session_state and st.session_state.preprocessed_df is not None:
+    # Prepare error handling variables
+    error_occurred = False
+    error_msg = ""
+    
+    # Ensure we have the JSON data available
+    if 'json_data' not in st.session_state or st.session_state.json_data is None:
+        if 'preprocessed_df' in st.session_state and st.session_state.preprocessed_df is not None:
+            try:
                 st.session_state.json_data = st.session_state.preprocessed_df.to_dict(orient='records')
                 logger.info(f"Generated json_data with {len(st.session_state.json_data)} records")
-            else:
-                raise ValueError("No data available for visualization")
-        
-        # Create HTML with the D3.js code and enhanced error handling
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <script src="{D3_VERSION}"></script>
-            <style>
-                #visualization {{
-                    width: 100%;
-                    height: {VISUALIZATION_HEIGHT}px;
-                    overflow: hidden;
-                    margin: 0;
-                    padding: 0;
-                }}
+            except Exception as e:
+                error_occurred = True
+                error_msg = f"Error preparing data: {str(e)}"
+                logger.error(error_msg)
+        else:
+            logger.warning("No preprocessed data available for visualization")
+    
+    # Only proceed if no error occurred during data preparation
+    if not error_occurred:
+        try:
+            # Create HTML with the D3.js code and enhanced error handling
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>D3 Visualization</title>
+                <script src="https://d3js.org/d3.v7.min.js"></script>
+                <style>
+                    #visualization {{
+                        width: 100%;
+                        height: {VISUALIZATION_HEIGHT}px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 5px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+                        overflow: hidden;
+                        position: relative;
+                    }}
+                    svg {{
+                        width: 100%;
+                        height: 100%;
+                        background-color: white;
+                    }}
+                    
+                    .tooltip {{
+                        position: absolute;
+                        background: rgba(255, 255, 255, 0.95);
+                        padding: 10px;
+                        border-radius: 5px;
+                        box-shadow: 0 0 10px rgba(0,0,0,0.25);
+                        pointer-events: none;
+                        font-family: Arial, sans-serif;
+                        font-size: 12px;
+                        z-index: 10;
+                    }}
+                    
+                    .error-message {{
+                        color: #d9534f;
+                        padding: 20px;
+                        border: 1px solid #d9534f;
+                        border-radius: 5px;
+                        background-color: #f9f2f2;
+                        margin: 20px;
+                        font-family: Arial, sans-serif;
+                    }}
+                    
+                    .fallback-viz {{
+                        width: 100%;
+                        height: 100%;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        flex-direction: column;
+                        background-color: #f8f9fa;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div id="visualization">
+                    <!-- Create the SVG element explicitly with dimensions -->
+                    <svg id="viz-svg" width="100%" height="100%" viewBox="0 0 800 {VISUALIZATION_HEIGHT}" preserveAspectRatio="xMidYMid meet"></svg>
+                </div>
                 
-                svg {{
-                    width: 100%;
-                    height: 100%;
-                    background-color: white;
-                }}
-                
-                .tooltip {{
-                    position: absolute;
-                    background: rgba(255, 255, 255, 0.95);
-                    padding: 10px;
-                    border-radius: 5px;
-                    box-shadow: 0 0 10px rgba(0,0,0,0.25);
-                    pointer-events: none;
-                    font-family: Arial, sans-serif;
-                    font-size: 12px;
-                    z-index: 10;
-                }}
-                
-                .error-message {{
-                    color: #d9534f;
-                    padding: 20px;
-                    border: 1px solid #d9534f;
-                    border-radius: 5px;
-                    background-color: #f9f2f2;
-                    margin: 20px;
-                    font-family: Arial, sans-serif;
-                }}
-                
-                .fallback-viz {{
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    flex-direction: column;
-                    background-color: #f8f9fa;
-                }}
-            </style>
-        </head>
-        <body>
-            <div id="visualization">
-                <!-- Create the SVG element explicitly with dimensions -->
-                <svg id="viz-svg" width="100%" height="100%" viewBox="0 0 800 {VISUALIZATION_HEIGHT}" preserveAspectRatio="xMidYMid meet"></svg>
-            </div>
-            
-            <script>
-                console.log("Starting visualization render at timestamp: {timestamp}");
-                
-                // Check browser compatibility
-                const checkBrowserCompatibility = function() {{
-                    try {{
-                        // Basic check for ES6 features
-                        eval("const x = () => {{}};");
-                        
-                        // Check if D3 is loaded
-                        if (typeof d3 === 'undefined') {{
-                            return {{
+                <script>
+                    console.log("Starting visualization render at timestamp: {timestamp}");
+                    
+                    // Check browser compatibility
+                    const checkBrowserCompatibility = function() {{
+                        try {{
+                            // Basic check for ES6 features
+                            eval("const x = () => {{}};");
+                            
+                            // Check if D3 is loaded
+                            if (typeof d3 === 'undefined') {{
+                                return {{
+                                    compatible: false,
+                                    message: "D3.js failed to load. Please check your internet connection."
+                                }};
+                            }}
+                            
+                            // Test D3 scale creation specifically
+                            try {{
+                                const testScale = d3.scaleLinear().domain([0, 1]).range([0, 100]);
+                                if (typeof testScale !== 'function' || typeof testScale.domain !== 'function') {{
+                                    return {{
+                                        compatible: false,
+                                        message: "D3 scale functions aren't working correctly in your browser."
+                                    }};
+                                }}
+                            }} catch (scaleError) {{
+                                return {{
+                                    compatible: false,
+                                    message: "D3 scale functions aren't available: " + scaleError.message
+                                }};
+                            }}
+                            
+                            return {{ compatible: true }};
+                        }} catch (e) {{
+                            return {{ 
                                 compatible: false,
-                                message: "D3.js failed to load. Please check your internet connection."
+                                message: "Your browser doesn't support modern JavaScript features needed for this visualization."
                             }};
                         }}
-                        
-                        return {{ compatible: true }};
-                    }} catch (e) {{
-                        return {{ 
-                            compatible: false,
-                            message: "Your browser doesn't support modern JavaScript features needed for this visualization."
-                        }};
-                    }}
-                }};
-                
-                // Wait for DOM to be fully loaded
-                document.addEventListener("DOMContentLoaded", function() {{
-                    const compatibilityCheck = checkBrowserCompatibility();
-                    if (compatibilityCheck.compatible) {{
-                        renderVisualization();
-                    }} else {{
-                        createFallbackVisualization(compatibilityCheck.message);
-                    }}
-                }});
-                
-                // Fallback if DOMContentLoaded already fired
-                if (document.readyState === "complete" || document.readyState === "interactive") {{
-                    setTimeout(() => {{
+                    }};
+                    
+                    // Wait for DOM to be fully loaded
+                    document.addEventListener("DOMContentLoaded", function() {{
                         const compatibilityCheck = checkBrowserCompatibility();
                         if (compatibilityCheck.compatible) {{
                             renderVisualization();
                         }} else {{
                             createFallbackVisualization(compatibilityCheck.message);
                         }}
-                    }}, 100);
-                }}
-                
-                // Safe D3 methods that wrap common operations with error handling
-                window.safeD3 = {{
-                    // Safe scale creation that handles missing/invalid domains
-                    createLinearScale: function(domain, range) {{
-                        try {{
-                            // Use default domain if missing or invalid
-                            const safeDomain = (Array.isArray(domain) && domain.length === 2 && 
-                                               !isNaN(domain[0]) && !isNaN(domain[1])) 
-                                ? domain 
-                                : [0, 100];
-                            
-                            // Use default range if missing or invalid
-                            const safeRange = (Array.isArray(range) && range.length === 2 &&
-                                              !isNaN(range[0]) && !isNaN(range[1]))
-                                ? range
-                                : [0, 500];
-                                
-                            return d3.scaleLinear().domain(safeDomain).range(safeRange);
-                        }} catch (e) {{
-                            console.warn("Error creating scale:", e);
-                            return d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                        }}
-                    }},
+                    }});
                     
-                    // Create any scale type with error handling
-                    createScale: function(type, domain, range) {{
-                        try {{
-                            const scaleFunc = d3["scale" + type.charAt(0).toUpperCase() + type.slice(1)];
-                            if (typeof scaleFunc !== 'function') {{
-                                console.warn(`Scale type '${{type}}' not recognized, using linear`);
-                                return this.createLinearScale(domain, range);
-                            }}
-                            
-                            // Create and configure the scale
-                            const scale = scaleFunc();
-                            
-                            // Handle different scale types that might have different config methods
-                            if (typeof scale.domain === 'function') {{
-                                if (Array.isArray(domain)) scale.domain(domain);
-                            }}
-                            
-                            if (typeof scale.range === 'function') {{
-                                if (Array.isArray(range)) scale.range(range);
-                            }}
-                            
-                            return scale;
-                        }} catch (e) {{
-                            console.warn(`Error creating ${{type}} scale:`, e);
-                            return this.createLinearScale(
-                                Array.isArray(domain) ? domain : [0, 100],
-                                Array.isArray(range) ? range : [0, 500]
-                            );
-                        }}
-                    }},
-                    
-                    // Safe axis creation that handles invalid scales
-                    createAxis: function(scaleOrType, orientation = 'bottom', tickCount = 5) {{
-                        try {{
-                            let axis;
-                            let scale;
-                            
-                            // Handle different input types
-                            if (typeof scaleOrType === 'function') {{
-                                // It's a scale
-                                scale = scaleOrType;
-                            }} else if (typeof scaleOrType === 'string') {{
-                                // If it's a type string, create a default scale of that type
-                                scale = this.createScale(scaleOrType, [0, 100], [0, 500]);
+                    // Fallback if DOMContentLoaded already fired
+                    if (document.readyState === "complete" || document.readyState === "interactive") {{
+                        setTimeout(() => {{
+                            const compatibilityCheck = checkBrowserCompatibility();
+                            if (compatibilityCheck.compatible) {{
+                                renderVisualization();
                             }} else {{
-                                // Neither - create a default linear scale
-                                scale = this.createLinearScale([0, 100], [0, 500]);
+                                createFallbackVisualization(compatibilityCheck.message);
                             }}
-                            
-                            // Determine which axis function to use
-                            let axisFunc;
-                            switch(orientation) {{
-                                case 'bottom': axisFunc = d3.axisBottom; break;
-                                case 'left': axisFunc = d3.axisLeft; break;
-                                case 'right': axisFunc = d3.axisRight; break;
-                                case 'top': axisFunc = d3.axisTop; break;
-                                default: axisFunc = d3.axisBottom;
-                            }}
-                            
-                            // Create the axis
-                            axis = axisFunc(scale);
-                            
-                            // Set tick count safely
+                        }}, 100);
+                    }}
+                    
+                    // Safe D3 methods that wrap common operations with error handling
+                    window.safeD3 = {{
+                        // Safe scale creation that handles missing/invalid domains
+                        createLinearScale: function(domain, range) {{
                             try {{
-                                if (Number.isInteger(tickCount) && tickCount > 0) {{
-                                    axis.ticks(tickCount);
-                                }}
-                            }} catch (tickError) {{
-                                console.warn("Error setting tick count:", tickError);
+                                // Use default domain if missing or invalid
+                                const safeDomain = (Array.isArray(domain) && domain.length === 2 && 
+                                                   !isNaN(domain[0]) && !isNaN(domain[1])) 
+                                    ? domain 
+                                    : [0, 100];
+                                
+                                // Use default range if missing or invalid
+                                const safeRange = (Array.isArray(range) && range.length === 2 &&
+                                                  !isNaN(range[0]) && !isNaN(range[1]))
+                                    ? range
+                                    : [0, 500];
+                                    
+                                return d3.scaleLinear().domain(safeDomain).range(safeRange);
+                            }} catch (e) {{
+                                console.warn("Error creating scale:", e);
+                                return d3.scaleLinear().domain([0, 100]).range([0, 500]);
                             }}
-                            
-                            return axis;
-                        }} catch (e) {{
-                            console.warn("Error creating axis:", e);
-                            // Return a minimal working axis as fallback
-                            const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                            return d3.axisBottom(scale).ticks(5);
-                        }}
-                    }},
-                    
-                    // Safe data accessor that handles missing properties
-                    getValue: function(d, property, defaultValue = 0) {{
-                        if (!d) return defaultValue;
-                        return d[property] !== undefined ? d[property] : defaultValue;
-                    }},
-                    
-                    // Safe selection method
-                    select: function(selector, parent = document) {{
-                        try {{
-                            const selection = (parent.querySelector ? parent : d3.select(parent)).querySelector(selector);
-                            return selection ? d3.select(selection) : null;
-                        }} catch (e) {{
-                            console.warn(`Error selecting '${{selector}}':`, e);
-                            return null;
-                        }}
-                    }},
-                    
-                    // Safe data binding
-                    bindData: function(selection, data) {{
-                        try {{
-                            if (!selection) return null;
-                            return selection.data(Array.isArray(data) ? data : []);
-                        }} catch (e) {{
-                            console.warn("Error binding data:", e);
-                            return selection;
-                        }}
-                    }}
-                }};
-                
-                // General purpose D3 operation wrapper
-                window.d3safe = function(operation, fallback) {{
-                    try {{
-                        return operation();
-                    }} catch (e) {{
-                        console.error("D3 operation failed:", e);
-                        return fallback;
-                    }}
-                }};
-                
-                // Override problematic D3 methods to catch errors
-                const originalAxisBottom = d3.axisBottom;
-                d3.axisBottom = function(scale) {{
-                    if (!scale) {{
-                        console.warn("Undefined scale passed to axisBottom, using fallback");
-                        scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                    }}
-                    return originalAxisBottom(scale);
-                }};
-                
-                const originalAxisLeft = d3.axisLeft;
-                d3.axisLeft = function(scale) {{
-                    if (!scale) {{
-                        console.warn("Undefined scale passed to axisLeft, using fallback");
-                        scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
-                    }}
-                    return originalAxisLeft(scale);
-                }};
-                
-                // Helper function to validate data
-                function validateData(data) {{
-                    if (!data || !Array.isArray(data) || data.length === 0) {{
-                        throw new Error("Data is empty or not in expected format");
-                    }}
-                    return true;
-                }}
-                
-                // Create a simple fallback visualization if needed
-                function createFallbackVisualization(errorMessage) {{
-                    const container = document.getElementById("visualization");
-                    
-                    // Clear existing content
-                    container.innerHTML = '';
-                    
-                    // Create a fallback visualization div
-                    const fallback = document.createElement("div");
-                    fallback.className = "fallback-viz";
-                    
-                    // Add error information
-                    const errorTitle = document.createElement("h3");
-                    errorTitle.textContent = "Visualization could not be rendered";
-                    
-                    const errorDetails = document.createElement("p");
-                    errorDetails.textContent = errorMessage;
-                    
-                    const errorHint = document.createElement("p");
-                    errorHint.textContent = "Try a different request or upload different data files";
-                    
-                    // Add all elements to the fallback
-                    fallback.appendChild(errorTitle);
-                    fallback.appendChild(errorDetails);
-                    fallback.appendChild(errorHint);
-                    
-                    // Add the fallback to the container
-                    container.appendChild(fallback);
-                }}
-                
-                function renderVisualization() {{
-                    try {{
-                        // The data from the DataFrame
-                        let data = {json.dumps(st.session_state.json_data)};
+                        }},
                         
-                        // Validate data before proceeding
-                        if (!validateData(data)) {{
-                            throw new Error("Invalid data format");
-                        }}
+                        // Create any scale type with error handling
+                        createScale: function(type, domain, range) {{
+                            try {{
+                                // Handle common errors in type names
+                                if (!type || typeof type !== 'string') {{
+                                    console.warn("Invalid scale type, using linear");
+                                    return this.createLinearScale(domain, range);
+                                }}
+                                
+                                // Normalize scale type name - handle both 'linear' and 'Linear' formats
+                                const normalizedType = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+                                const scaleName = `scale${{normalizedType}}`;
+                                
+                                const scaleFunc = d3[scaleName];
+                                if (typeof scaleFunc !== 'function') {{
+                                    console.warn(`Scale type '${{type}}' (${{scaleName}}) not recognized, using linear`);
+                                    return this.createLinearScale(domain, range);
+                                }}
+                                
+                                // Create and configure the scale
+                                const scale = scaleFunc();
+                                
+                                // Test if scale has proper methods before using them
+                                if (typeof scale.domain !== 'function' || typeof scale.range !== 'function') {{
+                                    console.warn(`Created scale doesn't have proper methods, using linear`);
+                                    return this.createLinearScale(domain, range);
+                                }}
+                                
+                                // Handle different scale types that might have different config methods
+                                if (Array.isArray(domain)) scale.domain(domain);
+                                if (Array.isArray(range)) scale.range(range);
+                                
+                                return scale;
+                            }} catch (e) {{
+                                console.warn(`Error creating ${{type}} scale:`, e);
+                                return this.createLinearScale(
+                                    Array.isArray(domain) ? domain : [0, 100],
+                                    Array.isArray(range) ? range : [0, 500]
+                                );
+                            }}
+                        }},
                         
-                        console.log("Data for visualization:", data);
-                        console.log("D3 code length:", `{len(d3_code)}` + " characters");
-                        
-                        // First create a proper SVG with dimensions
-                        const containerDiv = d3.select("#visualization");
-                        const containerWidth = containerDiv.node().getBoundingClientRect().width;
-                        const containerHeight = containerDiv.node().getBoundingClientRect().height;
-                        
-                        // Select and prepare the SVG element
-                        const svgElement = d3.select("#viz-svg")
-                            .attr("width", containerWidth)
-                            .attr("height", containerHeight)
-                            .attr("viewBox", `0 0 ${{containerWidth}} ${{containerHeight}}`)
-                            .attr("preserveAspectRatio", "xMidYMid meet");
-                        
-                        // Clear any existing visualization
-                        svgElement.selectAll("*").remove();
-                        
-                        // Add D3 error handling wrapper
-                        try {{
-                            // Add the D3 code
-                            {d3_code}
-                            
-                            // Call the createVisualization function with protected execution
-                            if (typeof createVisualization === 'function') {{
-                                // Wrap the function call in a try-catch to handle D3-specific errors
+                        // Verify a scale object has required methods and properties
+                        verifyScale: function(scale, defaultDomain = [0, 100], defaultRange = [0, 500]) {{
+                            try {{
+                                // Check if it's actually a scale
+                                if (!scale || typeof scale !== 'function' || typeof scale.domain !== 'function' || typeof scale.range !== 'function') {{
+                                    console.warn("Invalid scale object, creating fallback scale");
+                                    return this.createLinearScale(defaultDomain, defaultRange);
+                                }}
+                                
+                                // Test the scale's methods to ensure they work
                                 try {{
-                                    // Make safeD3 available to the visualization function
-                                    window.safeD3 = safeD3;
-                                    createVisualization(data, svgElement);
-                                    console.log("Visualization successfully rendered");
-                                }} catch (d3Error) {{
-                                    console.error("D3 runtime error:", d3Error);
-                                    
-                                    // Check for common D3 errors and provide helpful messages
-                                    let errorMessage = d3Error.message;
-                                    if (d3Error.message.includes("ticks") || 
-                                        d3Error.message.includes("undefined") ||
-                                        d3Error.message.includes("null")) {{
-                                        errorMessage = "Error with visualization data: The visualization couldn't be created with this data. Try a different request.";
-                                    }}
-                                    
-                                    createFallbackVisualization(errorMessage);
+                                    // Try calling domain and range to verify they work
+                                    scale.domain();
+                                    scale.range();
+                                    return scale;
+                                }} catch (methodError) {{
+                                    console.warn("Scale methods failed, creating fallback scale:", methodError);
+                                    return this.createLinearScale(defaultDomain, defaultRange);
                                 }}
-                            }} else {{
-                                throw new Error("createVisualization function not found in the generated code");
+                            }} catch (e) {{
+                                console.warn("Error verifying scale:", e);
+                                return this.createLinearScale(defaultDomain, defaultRange);
                             }}
-                        }} catch (funcError) {{
-                            console.error("Error calling createVisualization:", funcError);
+                        }},
+                        
+                        // Safe axis creation that handles invalid scales
+                        createAxis: function(scaleOrType, orientation = 'bottom', tickCount = 5) {{
+                            try {{
+                                let scale;
+                                
+                                // Handle different input types
+                                if (typeof scaleOrType === 'function') {{
+                                    // It's a scale, verify it's valid
+                                    scale = this.verifyScale(scaleOrType);
+                                }} else if (typeof scaleOrType === 'string') {{
+                                    // If it's a type string, create a default scale of that type
+                                    scale = this.createScale(scaleOrType, [0, 100], [0, 500]);
+                                }} else {{
+                                    // Neither - create a default linear scale
+                                    scale = this.createLinearScale([0, 100], [0, 500]);
+                                }}
+                                
+                                // Determine which axis function to use
+                                let axisFunc;
+                                switch(orientation) {{
+                                    case 'bottom': axisFunc = d3.axisBottom; break;
+                                    case 'left': axisFunc = d3.axisLeft; break;
+                                    case 'right': axisFunc = d3.axisRight; break;
+                                    case 'top': axisFunc = d3.axisTop; break;
+                                    default: axisFunc = d3.axisBottom;
+                                }}
+                                
+                                // Create the axis
+                                const axis = axisFunc(scale);
+                                
+                                // Set tick count safely
+                                try {{
+                                    if (Number.isInteger(tickCount) && tickCount > 0) {{
+                                        axis.ticks(tickCount);
+                                    }}
+                                }} catch (tickError) {{
+                                    console.warn("Error setting tick count:", tickError);
+                                }}
+                                
+                                return axis;
+                            }} catch (e) {{
+                                console.warn("Error creating axis:", e);
+                                // Return a minimal working axis as fallback
+                                const scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                                return d3.axisBottom(scale).ticks(5);
+                            }}
+                        }},
+                        
+                        // Safe data accessor that handles missing properties
+                        getValue: function(d, property, defaultValue = 0) {{
+                            if (!d) return defaultValue;
+                            return d[property] !== undefined ? d[property] : defaultValue;
+                        }},
+                        
+                        // Safe selection method
+                        select: function(selector, parent = document) {{
+                            try {{
+                                const selection = (parent.querySelector ? parent : d3.select(parent)).querySelector(selector);
+                                return selection ? d3.select(selection) : null;
+                            }} catch (e) {{
+                                console.warn(`Error selecting '${{selector}}':`, e);
+                                return null;
+                            }}
+                        }},
+                        
+                        // Safe data binding
+                        bindData: function(selection, data) {{
+                            try {{
+                                if (!selection) return null;
+                                return selection.data(Array.isArray(data) ? data : []);
+                            }} catch (e) {{
+                                console.warn("Error binding data:", e);
+                                return selection;
+                            }}
+                        }}
+                    }};
+                    
+                    // General purpose D3 operation wrapper
+                    window.d3safe = function(operation, fallback) {{
+                        try {{
+                            return operation();
+                        }} catch (e) {{
+                            console.error("D3 operation failed:", e);
+                            return fallback;
+                        }}
+                    }};
+                    
+                    // Override problematic D3 methods to catch errors
+                    const originalAxisBottom = d3.axisBottom;
+                    d3.axisBottom = function(scale) {{
+                        if (!scale) {{
+                            console.warn("Undefined scale passed to axisBottom, using fallback");
+                            scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                        }}
+                        return originalAxisBottom(scale);
+                    }};
+                    
+                    const originalAxisLeft = d3.axisLeft;
+                    d3.axisLeft = function(scale) {{
+                        if (!scale) {{
+                            console.warn("Undefined scale passed to axisLeft, using fallback");
+                            scale = d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                        }}
+                        return originalAxisLeft(scale);
+                    }};
+                    
+                    // Initialize D3 scale protections
+                    function setupD3Protection() {{
+                        // D3 scale protection - prevent 'n.range is not a function'
+                        const scaleCreators = ['scaleLinear', 'scaleOrdinal', 'scaleBand', 'scaleTime', 'scaleLog', 'scalePow', 'scaleSequential'];
+                        const originals = {{}};
+                        
+                        // For each scale type, provide a safe wrapper
+                        scaleCreators.forEach(function(scaleType) {{
+                            if (typeof d3[scaleType] === 'function') {{
+                                originals[scaleType] = d3[scaleType];
+                                
+                                d3[scaleType] = function() {{
+                                    try {{
+                                        const scale = originals[scaleType].apply(this, arguments);
+                                        
+                                        // Test the scale immediately to catch errors early
+                                        if (typeof scale !== 'function' || typeof scale.domain !== 'function' || typeof scale.range !== 'function') {{
+                                            console.warn(scaleType + " didn't create a proper scale object, using fallback");
+                                            return d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                                        }}
+                                        
+                                        return scale;
+                                    }} catch (e) {{
+                                        console.warn("Error in " + scaleType + ":", e);
+                                        return d3.scaleLinear().domain([0, 100]).range([0, 500]);
+                                    }}
+                                }};
+                            }}
+                        }});
+                    }}
+                    
+                    // Call setup to implement D3 protection
+                    setupD3Protection();
+                    
+                    // Helper function to validate data
+                    function validateData(data) {{
+                        if (!data || !Array.isArray(data) || data.length === 0) {{
+                            throw new Error("Data is empty or not in expected format");
+                        }}
+                        return true;
+                    }}
+                    
+                    // Create a simple fallback visualization if needed
+                    function createFallbackVisualization(errorMessage) {{
+                        const container = document.getElementById("visualization");
+                        
+                        // Clear existing content
+                        container.innerHTML = '';
+                        
+                        // Create a fallback visualization div
+                        const fallback = document.createElement("div");
+                        fallback.className = "fallback-viz";
+                        
+                        // Add error information
+                        const errorTitle = document.createElement("h3");
+                        errorTitle.textContent = "Visualization could not be rendered";
+                        
+                        const errorDetails = document.createElement("p");
+                        errorDetails.textContent = errorMessage || "An unknown error occurred";
+                        
+                        const errorHint = document.createElement("p");
+                        errorHint.textContent = "Try a different request or upload different data files";
+                        
+                        // Add all elements to the fallback
+                        fallback.appendChild(errorTitle);
+                        fallback.appendChild(errorDetails);
+                        fallback.appendChild(errorHint);
+                        
+                        // Add the fallback to the container
+                        container.appendChild(fallback);
+                    }}
+                    
+                    function renderVisualization() {{
+                        try {{
+                            // The data from the DataFrame
+                            let data = {json.dumps(st.session_state.json_data)};
+                            
+                            // Validate data before proceeding
+                            if (!validateData(data)) {{
+                                throw new Error("Invalid data format");
+                            }}
+                            
+                            console.log("Data for visualization:", data);
+                            console.log("D3 code length:", `{len(d3_code)}` + " characters");
+                            
+                            // First create a proper SVG with dimensions
+                            const containerDiv = d3.select("#visualization");
+                            const containerWidth = containerDiv.node().getBoundingClientRect().width;
+                            const containerHeight = containerDiv.node().getBoundingClientRect().height;
+                            
+                            // Select and prepare the SVG element
+                            const svgElement = d3.select("#viz-svg")
+                                .attr("width", containerWidth)
+                                .attr("height", containerHeight)
+                                .attr("viewBox", `0 0 ${{containerWidth}} ${{containerHeight}}`)
+                                .attr("preserveAspectRatio", "xMidYMid meet");
+                            
+                            // Clear any existing visualization
+                            svgElement.selectAll("*").remove();
+                            
+                            // Add D3 error handling wrapper
+                            try {{
+                                // Add the D3 code
+                                {d3_code}
+                                
+                                // Call the createVisualization function with protected execution
+                                if (typeof createVisualization === 'function') {{
+                                    // Wrap the function call in a try-catch to handle D3-specific errors
+                                    try {{
+                                        // Make safeD3 available to the visualization function
+                                        window.safeD3 = safeD3;
+                                        createVisualization(data, svgElement);
+                                        console.log("Visualization successfully rendered");
+                                    }} catch (d3Error) {{
+                                        console.error("D3 runtime error:", d3Error);
+                                        
+                                        // Check for common D3 errors and provide helpful messages
+                                        let errorMessage = d3Error.message;
+                                        if (d3Error.message.includes("ticks") || 
+                                            d3Error.message.includes("undefined") ||
+                                            d3Error.message.includes("null") ||
+                                            d3Error.message.includes("range is not a function")) {{
+                                            errorMessage = "Error with visualization data: The visualization couldn't be created with this data. Try a different request.";
+                                        }}
+                                        
+                                        createFallbackVisualization(errorMessage);
+                                    }}
+                                }} else {{
+                                    throw new Error("createVisualization function not found in the generated code");
+                                }}
+                            }} catch (funcError) {{
+                                console.error("Error calling createVisualization:", funcError);
+                                document.getElementById("visualization").innerHTML = 
+                                    `<div class="error-message">
+                                        <h3>Error Creating Visualization</h3>
+                                        <p>${{funcError.message}}</p>
+                                        <p>Try a different visualization request or check your data.</p>
+                                    </div>`;
+                            }}
+                        }} catch (error) {{
+                            console.error("Error rendering visualization:", error);
                             document.getElementById("visualization").innerHTML = 
                                 `<div class="error-message">
-                                    <h3>Error Creating Visualization</h3>
-                                    <p>${{funcError.message}}</p>
+                                    <h3>Error Rendering Visualization</h3>
+                                    <p>${{error.message}}</p>
                                     <p>Try a different visualization request or check your data.</p>
                                 </div>`;
                         }}
-                    }} catch (error) {{
-                        console.error("Error rendering visualization:", error);
-                        document.getElementById("visualization").innerHTML = 
-                            `<div class="error-message">
-                                <h3>Error Rendering Visualization</h3>
-                                <p>${{error.message}}</p>
-                                <p>Try a different visualization request or check your data.</p>
-                            </div>`;
                     }}
-                }}
-            </script>
-        </body>
-        </html>
-        """
-        
-        # Render in the appropriate place with proper height
-        if placeholder is not None:
-            # When using a placeholder, use it directly
-            with placeholder:
-                components.html(
-                    html_content,
-                    height=VISUALIZATION_HEIGHT + 50,  # Add some padding
-                    scrolling=True
-                )
-                logger.info("Visualization displayed in provided placeholder")
-        else:
-            # Use the container reuse pattern as specified in architecture.md
-            viz_container_key = f"viz_container_{st.session_state.viz_key}"
-            viz_container = st.session_state.get(viz_container_key, st.empty())
+                </script>
+            </body>
+            </html>
+            """
             
-            # Store the container in session state if it's newly created
-            if viz_container_key not in st.session_state:
-                st.session_state[viz_container_key] = viz_container
+            # Render in the appropriate place with proper height
+            if placeholder is not None:
+                # When using a placeholder, use it directly
+                with placeholder:
+                    components.html(
+                        html_content,
+                        height=VISUALIZATION_HEIGHT + 50,  # Add some padding
+                        scrolling=True
+                    )
+                    logger.info("Visualization displayed in provided placeholder")
+            else:
+                # Use the container reuse pattern as specified in architecture.md
+                viz_container_key = f"viz_container_{st.session_state.viz_key}"
+                viz_container = st.session_state.get(viz_container_key, st.empty())
+                
+                # Store the container in session state if it's newly created
+                if viz_container_key not in st.session_state:
+                    st.session_state[viz_container_key] = viz_container
+                
+                # Use the container
+                with viz_container.container():
+                    components.html(
+                        html_content,
+                        height=VISUALIZATION_HEIGHT + 50,  # Add some padding
+                        scrolling=True
+                    )
+                logger.info("Visualization displayed in consistent container")
             
-            # Use the container
-            with viz_container.container():
-                components.html(
-                    html_content,
-                    height=VISUALIZATION_HEIGHT + 50,  # Add some padding
-                    scrolling=True
-                )
-            logger.info("Visualization displayed in consistent container")
-        
-        # Log success
-        logger.info("Visualization displayed successfully")
-        
-    except Exception as e:
-        error_msg = f"Error displaying visualization. Please check the browser console for details. Error: {str(e)}"
-        logger.error(f"Error in display_visualization: {str(e)}")
-        logger.error(traceback.format_exc())
-        
+            # Log success
+            logger.info("Visualization displayed successfully")
+            
+        except Exception as e:
+            error_occurred = True
+            error_msg = f"Error displaying visualization. Please check the browser console for details. Error: {str(e)}"
+            logger.error(f"Error in display_visualization: {str(e)}")
+            logger.error(traceback.format_exc())
+    
+    # Display error message if an error occurred
+    if error_occurred:
         if placeholder is not None:
             with placeholder:
                 st.error(error_msg)
@@ -1287,7 +1389,7 @@ def main():
     
     # Initialize session state for workflow history if it doesn't exist
     if 'workflow_history' not in st.session_state:
-        st.session_state.workflow_history = []
+        st.session_state.workflow_history = []  # Stores the history of visualization changes
     
     if 'update_viz' not in st.session_state:
         st.session_state.update_viz = False
@@ -1307,6 +1409,7 @@ def main():
     viz_status = st.session_state.viz_status
     viz_caption = st.session_state.viz_caption
     viz_container = st.session_state.viz_container
+    
     
     # Display model information in a less prominent place if needed
     model = os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18")
@@ -1660,288 +1763,184 @@ def display_history_navigation(workflow_history, viz_container, viz_status, viz_
                         with viz_container.container():
                             st.empty()
                             
+                        # Display the restored visualization
                         display_visualization(item['code'], viz_container)
                         viz_status.success(f"Restored version {item['version']}")
                     
                     # Add a separator between history items
                     st.markdown("---")
         else:
-            st.info("No visualization history yet.")
+            st.info("No visualization history yet. Make changes to see them here.")
 
-def generate_d3_code_with_forced_changes(df, api_key, user_input, current_code):
+def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_input: str, current_code: str) -> str:
     """
-    Generate D3.js code with forced changes when the regular generation
-    produces identical code to what's currently displayed.
+    Generate a new D3 code that is ensured to be different from the current code.
+    This is used when the model generates identical code despite user requests for changes.
     
     Args:
         df (pd.DataFrame): The preprocessed DataFrame.
         api_key (str): OpenAI API key.
-        user_input (str): User's request for visualization modifications.
-        current_code (str): The current D3.js code being displayed.
+        user_input (str): User's request for changes.
+        current_code (str): The current D3 code that needs to be modified.
     
     Returns:
         str: New D3.js code with forced changes.
     """
-    if not user_input or user_input.strip() == "":
-        logger.warning("Empty user input for forced changes, returning current code")
-        return current_code
+    logger.info("Generating D3 code with forced changes")
     
-    data_sample = df.head(5).to_dict(orient='records')
-    schema = df.dtypes.to_dict()
-    schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
+    # Create a stronger prompt that emphasizes the need for changes
+    stronger_prompt = f"""
+    You are tasked with modifying D3.js visualization code based on a user request. 
     
-    # Initialize OpenAI client based on version
-    if OPENAI_API_VERSION == "v1":
-        client = OpenAI(api_key=api_key)
-    else:
-        openai.api_key = api_key
+    IMPORTANT: You MUST make substantial changes to the code based on the user's request.
+    The previous code was:
     
-    # Get model and parameters
-    model = os.getenv("DEFAULT_MODEL", "gpt-4")
-    max_tokens = DEFAULT_MAX_TOKENS
-    temperature = DEFAULT_TEMPERATURE * 1.2  # Higher temperature for more variability
-    
-    # JavaScript utility code examples provided separately to avoid f-string conflicts
-    js_utility_examples = """```javascript
-// Create scales safely
-const xScale = window.safeD3.createScale('linear', [0, d3.max(data, d => d.value) || 100], [0, width]);
-
-// Create axes safely
-const xAxis = window.safeD3.createAxis(xScale, 'bottom', 5);
-
-// Get values safely from data points
-const getValue = (d, property) => window.safeD3.getValue(d, property, 0);
-
-// Select elements safely
-const group = window.safeD3.select('#group', svgElement);
-
-// Safely bind data
-const bars = window.safeD3.bindData(group.selectAll('rect'), data);
-
-// Wrap any risky D3 operations
-const result = window.d3safe(() => d3.complexOperation(), fallbackValue);
-```"""
-
-    js_ticks_error_prevention = """```javascript
-// ALWAYS check scales have valid domains before creating axes
-function createSafeAxis(scale, orientation) {
-  try {
-    // Test if domain values are valid numbers  
-    const domain = scale.domain();
-    const validDomain = domain.every(d => d !== undefined && !isNaN(d));
-    
-    if (!validDomain) {
-      // Fix invalid domain before creating axis
-      scale.domain([0, 100]);
-    }
-    
-    // Now create axis with valid scale
-    return d3["axis" + orientation.charAt(0).toUpperCase() + orientation.slice(1)](scale);
-  } catch (e) {
-    console.error("Error creating axis:", e);
-    // Fallback to a guaranteed working axis
-    return d3.axisBottom(d3.scaleLinear().domain([0, 100]).range([0, 500]));
-  }
-}
-```"""
-    
-    # Create a prompt that explicitly requests significant changes
-    prompt = f"""
-    # D3.js VISUALIZATION REDESIGN - SIGNIFICANT CHANGES REQUIRED
-    
-    The current visualization needs significant changes based on this user request:
-    
-    ## USER REQUEST (MUST BE ADDRESSED):
-    {user_input}
-    
-    ## CURRENT CODE (MUST BE CHANGED):
     ```javascript
     {current_code}
     ```
     
-    ## DATA INFORMATION:
-    Schema: {schema_str}
+    User's request for changes: "{user_input}"
     
-    Sample data: 
-    ```json
-    {json.dumps(data_sample[:5], indent=2)}
-    ```
+    Please generate a completely new implementation that fulfills this request while being 
+    significantly different from the previous code. Ensure the visualization is improved according 
+    to the user's request. Include comprehensive error handling and comments to explain your approach.
     
-    ## REQUIREMENTS:
-    1. Create a COMPLETELY DIFFERENT visualization that fulfills the user request
-       - IMPORTANT: The svgElement parameter is a D3 selection, not a raw DOM element
-       - Always use svgElement.append() instead of d3.select("svg").append()
-       
-    2. Do NOT return code similar to the current code - change:
-       - Visualization type (e.g., from bar chart to line chart)
-       - Color scheme
-       - Layout and proportions
-       - Animation/transition effects
-       - Data mapping approach
-    
-    3. Implement responsive design:
-       - Get container dimensions from svgElement using .attr("width") and .attr("height")
-       - Use viewBox for SVG scaling
-       - Adapt the visualization to the container size
-    
-    4. Error handling is critical:
-       - Check for data existence before using it
-       - Provide sensible fallbacks for missing data
-       - Handle empty arrays and undefined values
-    
-    ## USE THESE SAFETY UTILITIES FOR ROBUST VISUALIZATIONS
-    Always use these utility functions to prevent common D3 errors:
-    
-    {js_utility_examples}
-    
-    ## ERROR PREVENTION FOR "TICKS" ISSUE
-    To prevent the common "ticks" error:
-    
-    {js_ticks_error_prevention}
-    
-    ## OUTPUT REQUIREMENTS:
-    - The code MUST start with 'function createVisualization(data, svgElement) {{'
-    - The function MUST perform data validation before using the data
-    - Return ONLY the complete JavaScript code - no explanatory text
-    - Include detailed, helpful comments within the code
-    - Ensure all visual elements are contained within the svgElement
-    - Add error handlers around any code that might throw exceptions
+    Only return valid JavaScript code for a D3.js visualization as a createVisualization function 
+    that takes data and svgElement as parameters. Do NOT include any markdown, explanation text, or backticks.
     """
-    
-    logger.info("Using forced change prompt due to identical code generation")
     
     try:
-        # Implement retry mechanism for API calls
-        max_retries = MAX_RETRIES
-        retry_delay = INITIAL_RETRY_DELAY
+        # Prepare example visualization with column info
+        column_info = "\n".join([f"- {col}: {df[col].dtype}" for col in df.columns])
+        data_sample = df.head(3).to_dict(orient='records')
         
-        for attempt in range(max_retries):
-            try:
-                # Increase temperature with each attempt
-                current_temperature = min(MAX_TEMPERATURE, temperature + (attempt * 0.1))
-                
-                # Call API based on version
-                if OPENAI_API_VERSION == "v1":
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=[{
-                            "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
-                        }, {
-                            "role": "user",
-                            "content": prompt
-                        }],
-                        temperature=current_temperature,
-                        max_tokens=max_tokens
-                    )
-                    d3_code = response.choices[0].message.content.strip()
-                else:
-                    response = openai.ChatCompletion.create(
-                        model=model,
-                        messages=[{
-                            "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations. ANY text that is not JavaScript code is forbidden. The user needs a visualization that is completely different from their current one."
-                        }, {
-                            "role": "user",
-                            "content": prompt
-                        }],
-                        temperature=current_temperature,
-                        max_tokens=max_tokens
-                    )
-                    d3_code = response.choices[0].message.content.strip()
-                
-                d3_code = clean_d3_response(d3_code)
-                logger.info(f"Generated new D3 code with forced changes, length: {len(d3_code)} characters, temperature: {current_temperature}")
-                
-                # Extra validation to ensure there's no trailing text
-                if "```" in d3_code or "Here is" in d3_code or "The code" in d3_code:
-                    logger.warning("Found explanatory text in the code, cleaning it...")
-                    d3_code = clean_d3_response(d3_code)
-                
-                # Verify the new code is actually different
-                if d3_code.strip() == current_code.strip():
-                    logger.warning(f"Generated code is still identical (attempt {attempt+1}/{max_retries}), retrying with higher temperature")
-                    continue
-                
-                # Check if the code includes safeD3 utilities
-                if "window.safeD3" not in d3_code and "safeD3" not in d3_code and "d3safe" not in d3_code:
-                    logger.warning("Generated code doesn't use safety utilities, but continuing anyway")
-                
-                return d3_code
-                
-            except RateLimitError:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Rate limit hit, retrying in {retry_delay} seconds (attempt {attempt+1}/{max_retries})")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # Exponential backoff
-                else:
-                    logger.error("Rate limit exceeded after maximum retries")
-                    # Return a modified version of the current code
-                    return add_safety_wrappers_to_code(current_code)
-            except Exception as e:
-                logger.error(f"Error in forced code generation (attempt {attempt+1}): {str(e)}")
-                logger.error(traceback.format_exc())
-                # If we're on the last attempt, try one more approach
-                if attempt == max_retries - 1:
-                    logger.warning("Trying last-resort approach to modify code")
-                    return add_safety_wrappers_to_code(current_code)
-                break
+        # Construct the prompt for the OpenAI API
+        prompt = f"""
+        Create a D3.js visualization that implements the following changes as requested by the user: 
+        "{user_input}"
         
-        # If all attempts failed, return current code with safety modifications
-        logger.error("Failed to generate different code after multiple attempts")
-        return add_safety_wrappers_to_code(current_code)
-    except Exception as e:
-        logger.error(f"Error in forced code generation: {str(e)}")
-        logger.error(traceback.format_exc())
-        return current_code
-
-def add_safety_wrappers_to_code(code):
-    """
-    Add safety wrappers to existing D3 code as a last resort when generation fails.
-    
-    Args:
-        code (str): The current D3.js code
+        Available data columns and their types:
+        {column_info}
         
-    Returns:
-        str: Modified code with safety wrappers
-    """
-    logger.info("Adding safety wrappers to existing code")
-    
-    # Check if the code already has error handling
-    if "try {" in code and "catch" in code:
-        logger.info("Code already has try/catch blocks, making minimal changes")
+        Sample data:
+        {json.dumps(data_sample, indent=2)}
         
-        # Simple find and replace operations to make it more robust
-        safer_code = code.replace("d3.scaleLinear()", "window.safeD3.createLinearScale([0, 100], [0, 500])")
-        safer_code = safer_code.replace("d3.axisBottom(", "window.safeD3.createAxis(")
-        safer_code = safer_code.replace("d3.axisLeft(", "window.safeD3.createAxis(")
+        REQUIREMENTS:
+        1. Implement robust error handling including try-catch blocks
+        2. Ensure all scales have proper domains and ranges
+        3. Implement the EXACT changes requested by the user
+        4. Your code must be DIFFERENT from the current implementation
+        5. Return ONLY the D3.js code as a function named createVisualization(data, svgElement)
+        
+        Current code to modify:
+        ```javascript
+        {current_code}
+        ```
+        
+        Your response should ONLY include the JavaScript code without any explanation.
+        """
+        
+        # Ensure the code is different by indicating that requirement in the prompt
+        logger.info("Requesting new D3 code with forced changes from OpenAI API")
+        
+        # Call the OpenAI API
+        response = openai.ChatCompletion.create(
+            model=os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18"),
+            messages=[
+                {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=3500
+        )
+        
+        # Extract the code from the response
+        new_code = response.choices[0].message.content.strip()
+        
+        # Ensure we're only returning JavaScript code (remove markdown backticks if present)
+        new_code = clean_d3_response(new_code)
+        
+        # Enforce safer practices
+        safer_code = add_safety_wrapper(new_code)
         
         return safer_code
-    
-    # More extensive modification - wrap the main visualization logic in try/catch
-    function_header = "function createVisualization(data, svgElement) {"
-    
-    if function_header in code:
-        start_idx = code.index(function_header) + len(function_header)
         
-        # Split the code into header and body
-        header = code[:start_idx]
-        body = code[start_idx:]
+    except Exception as e:
+        logger.error(f"Error in generate_d3_code_with_forced_changes: {str(e)}")
+        logger.error(traceback.format_exc())
         
-        # Add data validation and wrap body in try/catch
-        safer_code = f"""{header}
-  // Data validation
-  if (!data || !Array.isArray(data) || data.length === 0) {{
-    console.error("Invalid or empty data provided");
-    data = [{{value: 50}}, {{value: 30}}, {{value: 70}}]; // Fallback data
-  }}
-  
+        # Return a fallback visualization if there's an error
+        return """
+        function createVisualization(data, svgElement) {
+          try {
+            // Fallback visualization due to error
+            const width = svgElement.attr("width");
+            const height = svgElement.attr("height");
+            
+            // Create a simple message
+            svgElement.append("text")
+              .attr("x", width / 2)
+              .attr("y", height / 2)
+              .attr("text-anchor", "middle")
+              .style("fill", "red")
+              .text("Error generating visualization: " + "Unable to process your request");
+              
+            // Display a small representation of the data
+            svgElement.append("text")
+              .attr("x", width / 2)
+              .attr("y", height / 2 + 30)
+              .attr("text-anchor", "middle")
+              .style("fill", "gray")
+              .text("Data sample: " + JSON.stringify(data[0]).substring(0, 50) + "...");
+              
+          } catch (error) {
+            console.error("Error in fallback visualization:", error);
+          }
+        }
+        """
+
+def add_safety_wrapper(code: str) -> str:
+    """
+    Add a safety wrapper around the D3 visualization code to ensure errors are caught
+    and proper fallbacks are provided.
+    
+    Args:
+        code (str): The original D3 visualization code.
+    
+    Returns:
+        str: The code with added safety wrapper.
+    """
+    # Check if the code already has a function declaration
+    if "function createVisualization" in code:
+        # Find the opening brace of the function
+        function_match = re.search(r'function\s+createVisualization\s*\([^)]*\)\s*\{', code)
+        if function_match:
+            # Find where the function body starts
+            body_start = function_match.end()
+            
+            # Extract everything after the opening brace
+            body = code[body_start:]
+            
+            # Find the matching closing brace for the function
+            brace_count = 1
+            closing_index = -1
+            
+            for i, char in enumerate(body):
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        closing_index = i
+                        break
+            
+            if closing_index != -1:
+                # Extract the body without the closing brace
+                body = body[:closing_index]
+                
+                # Wrap the body in a try-catch
+                safer_code = f"""function createVisualization(data, svgElement) {{
   try {{
-    // Get dimensions from the SVG element
-    const width = parseInt(svgElement.attr("width")) || 800;
-    const height = parseInt(svgElement.attr("height")) || 500;
-    const margin = {{top: 40, right: 40, bottom: 60, left: 60}};
-    
 {body.strip()}
   }} catch (error) {{
     console.error("Error in visualization:", error);
@@ -1954,7 +1953,7 @@ def add_safety_wrappers_to_code(code):
       .style("fill", "red");
   }}
 }}"""
-        return safer_code
+                return safer_code
     
     # If we couldn't find the function header, return the original code
     return code
