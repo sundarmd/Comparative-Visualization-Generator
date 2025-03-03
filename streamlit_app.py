@@ -507,6 +507,8 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Formatted tick values
            - Rotated labels if needed
            - Smooth transitions for updates
+           - IMPORTANT: Ensure axes are properly aligned with the visualization by using margin transforms
+           - Create a container group for all elements and transform it using margins
         
         5. Add rich interactivity:
            - Detailed tooltips with all relevant data
@@ -530,6 +532,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         - window.safeD3.createLinearScale(domain, range) - Creates a scale with fallbacks
         - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
         - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
+        - window.safeD3.createAxesWithLabels(svgElement, xScale, yScale, options) - Creates properly positioned axes with labels
         
         ## OUTPUT RULES (CRITICALLY IMPORTANT):
         - The code MUST start with 'function createVisualization(data, svgElement) {{'
@@ -1112,6 +1115,86 @@ def get_visualization_html(d3_code: str) -> str:
                     }} catch (e) {{
                         console.warn("Error binding data:", e);
                         return selection;
+                    }}
+                }},
+                
+                // Helper to create properly formatted axes with labels
+                createAxesWithLabels: function(svgElement, xScale, yScale, options = {{}}) {{
+                    const defaults = {{
+                        width: 600,
+                        height: 400,
+                        margin: {{top: 40, right: 40, bottom: 40, left: 40}},
+                        xLabel: "X Axis",
+                        yLabel: "Y Axis",
+                        ticksX: 5,
+                        ticksY: 5
+                    }};
+                    
+                    // Merge options with defaults
+                    const config = {{...defaults, ...options}};
+                    if (options.margin) {{
+                        config.margin = {{...defaults.margin, ...options.margin}};
+                    }}
+                    
+                    try {{
+                        // Verify scales
+                        const safeXScale = this.verifyScale(xScale);
+                        const safeYScale = this.verifyScale(yScale);
+                        
+                        // Create group for axes if not already present
+                        let g = svgElement.select("g.axes-container");
+                        if (g.empty()) {{
+                            g = svgElement.append("g")
+                                .attr("class", "axes-container")
+                                .attr("transform", `translate(${{config.margin.left}},${{config.margin.top}})`);
+                        }}
+                        
+                        // Calculate inner dimensions
+                        const innerWidth = config.width - config.margin.left - config.margin.right;
+                        const innerHeight = config.height - config.margin.top - config.margin.bottom;
+                        
+                        // Create and add x-axis
+                        const xAxis = this.createAxis(safeXScale, 'bottom', config.ticksX);
+                        const xAxisG = g.append("g")
+                            .attr("class", "x-axis")
+                            .attr("transform", `translate(0,${{innerHeight}})`)
+                            .call(xAxis);
+                        
+                        // Add x-axis label
+                        xAxisG.append("text")
+                            .attr("class", "x-axis-label")
+                            .attr("x", innerWidth / 2)
+                            .attr("y", 35)
+                            .attr("fill", "black")
+                            .attr("text-anchor", "middle")
+                            .text(config.xLabel);
+                        
+                        // Create and add y-axis
+                        const yAxis = this.createAxis(safeYScale, 'left', config.ticksY);
+                        const yAxisG = g.append("g")
+                            .attr("class", "y-axis")
+                            .call(yAxis);
+                        
+                        // Add y-axis label
+                        yAxisG.append("text")
+                            .attr("class", "y-axis-label")
+                            .attr("transform", "rotate(-90)")
+                            .attr("x", -innerHeight / 2)
+                            .attr("y", -35)
+                            .attr("fill", "black")
+                            .attr("text-anchor", "middle")
+                            .text(config.yLabel);
+                        
+                        return {{
+                            xAxis: xAxisG,
+                            yAxis: yAxisG,
+                            innerWidth: innerWidth,
+                            innerHeight: innerHeight,
+                            g: g
+                        }};
+                    }} catch (e) {{
+                        console.warn("Error creating axes with labels:", e);
+                        return null;
                     }}
                 }}
             }};
