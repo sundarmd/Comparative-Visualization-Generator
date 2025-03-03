@@ -2002,7 +2002,7 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         data_sample = df.head(3).to_dict(orient='records')
         
         # Construct the prompt for the OpenAI API
-        prompt = f"""
+    prompt = f"""
         Create a D3.js visualization that implements the following changes as requested by the user: 
         "{user_input}"
         
@@ -2020,10 +2020,10 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         5. Return ONLY the D3.js code as a function named createVisualization(data, svgElement)
         
         Current code to modify:
-        ```javascript
-        {current_code}
-        ```
-        
+    ```javascript
+    {current_code}
+    ```
+    
         Your response should ONLY include the JavaScript code without any explanation.
         """
         
@@ -2031,7 +2031,7 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         logger.info("Requesting new D3 code with forced changes from OpenAI API")
         
         # Call the OpenAI API
-        response = openai.ChatCompletion.create(
+                    response = openai.ChatCompletion.create(
             model=os.getenv("DEFAULT_MODEL", "gpt-4o-mini-2024-07-18"),
             messages=[
                 {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
@@ -2052,9 +2052,9 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         
         return safer_code
         
-    except Exception as e:
+            except Exception as e:
         logger.error(f"Error in generate_d3_code_with_forced_changes: {str(e)}")
-        logger.error(traceback.format_exc())
+                logger.error(traceback.format_exc())
         
         # Return a fallback visualization if there's an error
         return """
