@@ -2,6 +2,44 @@
 
 You can play with the [Live Demo](https://comparative-visualization-generator.streamlit.app/) here
 
+## Architecture
+
+```mermaid
+graph TD
+    A[User] -->|1. Provides API Key| B[Streamlit Interface]
+    A -->|2. Uploads CSV Files| B
+    A -->|3. Enters Natural Language Query| B
+    
+    B -->|Preprocesses Data| C[Data Preparation]
+    C -->|Merged DataFrame| D[OpenAI API]
+    
+    B -->|Sends Prompt with Data Sample & Query| D
+    D -->|Returns D3.js Code| E[Code Validation & Refinement]
+    
+    E -->|Invalid Code| D
+    E -->|Valid Code| F[Code Safety Wrapper]
+    
+    F -->|Safe D3.js Code| G[Visualization Rendering]
+    G -->|Interactive Visualization| B
+    
+    B -->|Displays Results| A
+    
+    H[History Management] <-->|Stores Previous Versions| B
+    
+    subgraph Backend Processing
+        C
+        D
+        E
+        F
+    end
+    
+    subgraph Frontend
+        B
+        G
+        H
+    end
+```
+
 ## How it works?
 
 1. Enter your Open AI API key
