@@ -5,39 +5,46 @@ You can play with the [Live Demo](https://comparative-visualization-generator.st
 ## Architecture
 
 ```mermaid
-graph TD
-    A[User] -->|1. Provides API Key| B[Streamlit Interface]
-    A -->|2. Uploads CSV Files| B
-    A -->|3. Enters Natural Language Query| B
+flowchart LR
+    classDef userClass fill:#f9f,stroke:#333,stroke-width:2px
+    classDef frontendClass fill:#bbf,stroke:#33f,stroke-width:1px
+    classDef backendClass fill:#bfb,stroke:#3b3,stroke-width:1px
     
-    B -->|Preprocesses Data| C[Data Preparation]
-    C -->|Merged DataFrame| D[OpenAI API]
-    
-    B -->|Sends Prompt with Data Sample & Query| D
-    D -->|Returns D3.js Code| E[Code Validation & Refinement]
-    
-    E -->|Invalid Code| D
-    E -->|Valid Code| F[Code Safety Wrapper]
-    
-    F -->|Safe D3.js Code| G[Visualization Rendering]
-    G -->|Interactive Visualization| B
-    
-    B -->|Displays Results| A
-    
-    H[History Management] <-->|Stores Previous Versions| B
-    
-    subgraph Backend Processing
-        C
-        D
-        E
-        F
-    end
+    User([User]):::userClass
     
     subgraph Frontend
-        B
-        G
-        H
+        direction TB
+        SI[Streamlit Interface]:::frontendClass
+        VR[Visualization Rendering]:::frontendClass
+        HM[History Management]:::frontendClass
     end
+    
+    subgraph Backend
+        direction TB
+        DP[Data Preparation]:::backendClass
+        OAI[OpenAI API]:::backendClass
+        CV[Code Validation & Refinement]:::backendClass
+        CSW[Code Safety Wrapper]:::backendClass
+    end
+    
+    User -->|1. API Key| SI
+    User -->|2. CSV Files| SI
+    User -->|3. Natural Language Query| SI
+    
+    SI -->|Preprocesses| DP
+    DP -->|Merged DataFrame| OAI
+    SI -->|Data Sample & Query| OAI
+    
+    OAI -->|D3.js Code| CV
+    CV -->|Invalid| OAI
+    CV -->|Valid| CSW
+    
+    CSW -->|Safe D3.js Code| VR
+    VR -->|Interactive Visualization| SI
+    
+    SI -->|Results| User
+    
+    HM <-->|Version History| SI
 ```
 
 ## How it works?
