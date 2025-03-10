@@ -101,7 +101,7 @@ Explore the data through interactive D3.js visualizations.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/comparative-visualization-generator.git
+git clone https://github.com/sundarmd/comparative-visualization-generator.git
 
 # Navigate to project directory
 cd comparative-visualization-generator
