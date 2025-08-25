@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import openai
+import anthropic
 import os
 import json
 import logging
@@ -51,27 +51,24 @@ if 'viz_key' not in st.session_state:
 if 'history_index' not in st.session_state:
     st.session_state.history_index = 0  # Tracks current position in visualization history
 
-# Import OpenAI with version compatibility
+# Import Anthropic Claude API
 try:
-    # Try newer OpenAI SDK style (v1.0.0+)
-    from openai import OpenAI
-    OPENAI_API_VERSION = "v1"
-    logger.info("Using OpenAI API v1 client")
-except ImportError:
-    # Fall back to older style
-    OPENAI_API_VERSION = "v0"
-    logger.info("Using OpenAI API v0 client")
-
-# Configure exceptions based on OpenAI version
-if OPENAI_API_VERSION == "v1":
-    RateLimitError = openai.RateLimitError 
-else:
-    try:
-        RateLimitError = openai.error.RateLimitError
-    except AttributeError:
-        # If neither works, create a minimal implementation
-        class RateLimitError(Exception):
-            pass
+    from anthropic import Anthropic
+    ANTHROPIC_API_VERSION = "v1"
+    logger.info("Using Anthropic Claude API client")
+    
+    # Import Claude-specific exceptions
+    from anthropic import RateLimitError, APIError
+except ImportError as e:
+    logger.error(f"Failed to import Anthropic SDK: {e}")
+    # Create minimal fallback implementations
+    class RateLimitError(Exception):
+        pass
+    
+    class APIError(Exception):
+        pass
+    
+    ANTHROPIC_API_VERSION = "fallback"
 
 def display_loading_animation():
     loading_html = """
@@ -125,7 +122,7 @@ def get_api_key() -> Optional[str]:
     """
     Securely retrieve the API key.
     
-    This function attempts to get the OpenAI API key from:
+    This function attempts to get the Anthropic API key from:
     1. Environment variables (loaded from .env file)
     2. Streamlit secrets
     3. User input via sidebar
@@ -134,19 +131,19 @@ def get_api_key() -> Optional[str]:
         Optional[str]: The API key if found or entered, None otherwise.
     """
     # First try to get from environment variables (from .env file)
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("ANTHROPIC_API_KEY")
     
     # If not found in environment, try Streamlit secrets
     if not api_key:
         try:
-            api_key = st.secrets.get("OPENAI_API_KEY")
+            api_key = st.secrets.get("ANTHROPIC_API_KEY")
         except Exception:
             # Handle case where secrets might not be configured
             pass
     
     # If still not found, prompt the user
     if not api_key:
-        api_key = st.sidebar.text_input("Enter your OpenAI API Key", type="password")
+        api_key = st.sidebar.text_input("Enter your Anthropic API Key", type="password")
         if api_key:
             st.sidebar.success("API key received successfully! 🎉")
     
@@ -154,10 +151,10 @@ def get_api_key() -> Optional[str]:
 
 def test_api_key(api_key: str) -> bool:
     """
-    This function attempts to make a simple API call using the provided OpenAI API key.
+    This function attempts to make a simple API call using the provided Anthropic API key.
     
     Args:
-        api_key (str): The OpenAI API key to test.
+        api_key (str): The Anthropic API key to test.
     
     Returns:
         bool: True if the API key is valid, False otherwise.
@@ -166,16 +163,12 @@ def test_api_key(api_key: str) -> bool:
         return False
     
     try:
-        # Test API key based on version
-        if OPENAI_API_VERSION == "v1":
-            client = OpenAI(api_key=api_key)
+        # Test API key with Anthropic Claude
+        if ANTHROPIC_API_VERSION == "v1":
+            client = Anthropic(api_key=api_key)
             # Make a minimal API call to check if the key is valid
-            client.models.list(limit=1)
-        else:
-            openai.api_key = api_key
-            # Make a minimal API call to check if the key is valid
-            openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
+            client.messages.create(
+                model="claude-3-haiku-20240307",  # Use smaller model for testing
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=5
             )
@@ -590,11 +583,11 @@ def generate_improvement_instructions(validation_results: dict) -> str:
 
 def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> str:
     """
-    Generate D3.js code using OpenAI API based on data and user requests.
+    Generate D3.js code using Claude API based on data and user requests.
     
     Args:
         df (pd.DataFrame): The preprocessed DataFrame containing the data to visualize.
-        api_key (str): OpenAI API key.
+        api_key (str): Anthropic API key.
         user_input (str, optional): User's request for visualization modifications.
     
     Returns:
@@ -615,14 +608,14 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         schema = df.dtypes.to_dict()
         schema_str = "\n".join([f"{col}: {dtype}" for col, dtype in schema.items()])
         
-        # Initialize OpenAI client based on version
-        if OPENAI_API_VERSION == "v1":
-            client = OpenAI(api_key=api_key)
+        # Initialize Anthropic client
+        if ANTHROPIC_API_VERSION == "v1":
+            client = Anthropic(api_key=api_key)
         else:
-            openai.api_key = api_key
+            raise ValueError("Anthropic SDK not properly installed")
         
-        # Get model and parameters
-        model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-08-06")
+        # Get model and parameters - using Claude Opus 4.1 as default
+        model = os.getenv("DEFAULT_MODEL", "claude-opus-4-1-20250805")
         max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
         temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
@@ -916,7 +909,7 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         - If you need to explain something, do it as comments INSIDE the code
         """
         
-        logger.info(f"Calling OpenAI API with model: {model}")
+        logger.info(f"Calling Claude API with model: {model}")
         
         # API call with retry mechanism for rate limits
         max_retries = 3
@@ -924,35 +917,25 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         
         for attempt in range(max_retries):
             try:
-                # Call API based on version
-                if OPENAI_API_VERSION == "v1":
-                    response = client.chat.completions.create(
+                # Call Claude API
+                if ANTHROPIC_API_VERSION == "v1":
+                    # Claude API doesn't use system role - include instruction in user message
+                    system_instruction = "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
+                    
+                    combined_prompt = f"{system_instruction}\n\n{prompt}"
+                    
+                    response = client.messages.create(
                         model=model,
                         messages=[{
-                            "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
-                        }, {
                             "role": "user",
-                            "content": prompt
+                            "content": combined_prompt
                         }],
                         temperature=temperature,
                         max_tokens=max_tokens
                     )
-                    d3_code = response.choices[0].message.content.strip()
+                    d3_code = response.content[0].text.strip()
                 else:
-                    response = openai.ChatCompletion.create(
-                        model=model,
-                        messages=[{
-                            "role": "system",
-                            "content": "You are a D3.js expert. You must generate ONLY CODE with no explanations or markdown. ANY text that is not JavaScript code is forbidden. Never include explanations, descriptions, or commentary outside the code itself. The code must be a complete createVisualization function that can be executed directly."
-                        }, {
-                            "role": "user",
-                            "content": prompt
-                        }],
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    d3_code = response.choices[0].message.content.strip()
+                    raise ValueError("Anthropic SDK not properly configured")
                 
                 logger.info(f"Generated D3 code length: {len(d3_code)} characters")
                 
@@ -993,24 +976,24 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
     Refine the D3 code through iterative LLM calls if necessary.
     
     This function attempts to improve the generated D3 code if it fails validation.
-    It makes multiple attempts to refine the code using the OpenAI API.
+    It makes multiple attempts to refine the code using the Claude API.
     
     Args:
         initial_code (str): The initial D3.js code to refine.
-        api_key (str): OpenAI API key.
+        api_key (str): Anthropic API key.
         max_attempts (int, optional): Maximum number of refinement attempts. Defaults to 3.
     
     Returns:
         str: Refined D3.js code, or the last attempt if refinement fails.
     """
-    # Initialize API
-    if OPENAI_API_VERSION == "v1":
-        client = OpenAI(api_key=api_key)
+    # Initialize Anthropic API
+    if ANTHROPIC_API_VERSION == "v1":
+        client = Anthropic(api_key=api_key)
     else:
-        openai.api_key = api_key
+        raise ValueError("Anthropic SDK not properly installed")
     
     # Get model and parameters from environment variables or use defaults
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-08-06")
+    model = os.getenv("DEFAULT_MODEL", "claude-opus-4-1-20250805")
     max_tokens = int(os.getenv("MAX_TOKENS", "4000"))
     temperature = float(os.getenv("TEMPERATURE", "0.7"))
     
@@ -1059,23 +1042,17 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
             """
             
             try:
-                # Call API based on version
-                if OPENAI_API_VERSION == "v1":
-                    response = client.chat.completions.create(
+                # Call Claude API
+                if ANTHROPIC_API_VERSION == "v1":
+                    response = client.messages.create(
                         model=model,
                         messages=[{"role": "user", "content": refinement_prompt}],
                         temperature=temperature,
                         max_tokens=max_tokens
                     )
-                    content = response.choices[0].message.content
+                    content = response.content[0].text
                 else:
-                    response = openai.ChatCompletion.create(
-                        model=model,
-                        messages=[{"role": "user", "content": refinement_prompt}],
-                        temperature=temperature,
-                        max_tokens=max_tokens
-                    )
-                    content = response.choices[0].message.content
+                    raise ValueError("Anthropic SDK not properly configured")
                 
                 initial_code = clean_d3_response(content)
                 
@@ -1095,7 +1072,7 @@ def refine_d3_code(initial_code: str, api_key: str, max_attempts: int = 3) -> st
 
 def clean_d3_response(response: str) -> str:
     """
-    Clean the D3.js code response from OpenAI to ensure it's properly formatted.
+    Clean the D3.js code response from Claude to ensure it's properly formatted.
     
     This function extracts just the JavaScript code from the LLM response,
     removing any explanatory text, code blocks, or other non-code content.
@@ -2375,7 +2352,7 @@ def main():
     
     
     # Display model information in a less prominent place if needed
-    model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
+    model = os.getenv("DEFAULT_MODEL", "claude-opus-4-1-20250805")
     
     st.header("Upload CSV Files")
     col1, col2 = st.columns(2)
@@ -2389,7 +2366,7 @@ def main():
         st.info("📊 Please upload both CSV files to generate a visualization.")
         st.markdown("""
         ### How to use this app:
-        1. Enter your OpenAI API key in the sidebar
+        1. Enter your Anthropic API key in the sidebar
         2. Upload two CSV files for comparison
         3. The app will generate an initial visualization
         4. Describe changes you want in the text field
@@ -2554,13 +2531,13 @@ def main():
                     error_message = str(e)
                     
                     # Provide more helpful error messages for common issues
-                    if "openai" in error_message.lower():
-                        if "api key" in error_message.lower():
-                            error_message = "Invalid or expired OpenAI API key. Please check your API key and try again."
+                    if "anthropic" in error_message.lower():
+                        if "api key" in error_message.lower() or "authentication" in error_message.lower():
+                            error_message = "Invalid or expired Anthropic API key. Please check your API key and try again."
                         elif "rate limit" in error_message.lower():
-                            error_message = "OpenAI API rate limit exceeded. Please wait a minute and try again."
+                            error_message = "Claude API rate limit exceeded. Please wait a minute and try again."
                         else:
-                            error_message = f"OpenAI API error: {error_message}. Please try again later."
+                            error_message = f"Claude API error: {error_message}. Please try again later."
                     
                     st.error(f"Error updating visualization: {error_message}")
                     logger.error(f"Error in visualization update flow: {str(e)}")
@@ -2804,41 +2781,35 @@ def generate_d3_code_with_forced_changes(df: pd.DataFrame, api_key: str, user_in
         """
         
         # Ensure the code is different by indicating that requirement in the prompt
-        logger.info("Requesting new D3 code with forced changes from OpenAI API")
+        logger.info("Requesting new D3 code with forced changes from Claude API")
         
         # Get model and parameters
-        model = os.getenv("DEFAULT_MODEL", "gpt-4o-2024-12-17")
+        model = os.getenv("DEFAULT_MODEL", "claude-opus-4-1-20250805")
         max_tokens = int(os.getenv("MAX_TOKENS", "3500"))
         temperature = float(os.getenv("TEMPERATURE", "0.7"))
         
-        # Call the OpenAI API with version check
-        if OPENAI_API_VERSION == "v1":
-            client = OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
+        # Call the Claude API
+        if ANTHROPIC_API_VERSION == "v1":
+            client = Anthropic(api_key=api_key)
+            
+            # Claude doesn't use system role - combine system instruction with user prompt
+            system_instruction = "You are a D3.js expert who creates robust data visualizations with excellent error handling."
+            combined_prompt = f"{system_instruction}\n\n{prompt}"
+            
+            response = client.messages.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": combined_prompt}
                 ],
                 temperature=temperature,
                 max_tokens=max_tokens
             )
-            new_code = response.choices[0].message.content.strip()
+            new_code = response.content[0].text.strip()
         else:
-            openai.api_key = api_key
-            response = openai.ChatCompletion.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": "You are a D3.js expert who creates robust data visualizations with excellent error handling."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            new_code = response.choices[0].message.content.strip()
+            raise ValueError("Anthropic SDK not properly configured")
         
         # Log the response for debugging
-        logger.info(f"Received response from OpenAI API, code length: {len(new_code)}")
+        logger.info(f"Received response from Claude API, code length: {len(new_code)}")
         
         # Ensure we're only returning JavaScript code (remove markdown backticks if present)
         new_code = clean_d3_response(new_code)
