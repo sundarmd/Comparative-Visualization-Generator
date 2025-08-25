@@ -296,6 +296,143 @@ def validate_d3_code(code: str) -> dict:
     if not re.search(r'\.attr\s*\(\s*[\'"](width|height)[\'"]', code):
         warnings.append("Sizing: No width or height attributes set")
     
+    # ============ AESTHETIC VALIDATION CHECKS ============
+    
+    # Check for mandatory title
+    if not re.search(r'\.text\s*\(\s*[\'"][^\'\"]*(?:vs|comparison|distribution|relationship|pattern)[^\'\"]*[\'"]\s*\)', code, re.IGNORECASE):
+        missing_features.append("Visual Design: Missing descriptive title")
+    
+    # Check for legend implementation
+    legend_patterns = [
+        r'\.append\s*\(\s*[\'"]g[\'"]\s*\)[^}]*class[^}]*legend',
+        r'legend[^}]*\.append',
+        r'\.attr\s*\(\s*[\'"]class[\'"]\s*,\s*[\'"]legend[\'"]\s*\)'
+    ]
+    has_legend = any(re.search(pattern, code) for pattern in legend_patterns)
+    if not has_legend:
+        missing_features.append("Visual Design: Missing legend for data encodings")
+    
+    # Check for axis labels
+    axis_label_patterns = [
+        r'\.text\s*\(\s*[\'"][^\'\"]+[\'"]\s*\)[^}]*(?:x-axis|y-axis|axis)',
+        r'(?:x-axis|y-axis|axis)[^}]*\.text\s*\(',
+        r'axis[^}]*label[^}]*\.text'
+    ]
+    has_axis_labels = any(re.search(pattern, code, re.IGNORECASE) for pattern in axis_label_patterns)
+    if not has_axis_labels:
+        missing_features.append("Visual Design: Missing descriptive axis labels")
+    
+    # Check for professional color schemes
+    professional_colors = [
+        r'#1f77b4|#aec7e8|#ff7f0e',  # Professional Blue Palette
+        r'#440154|#482777|#3f4a8a',  # Viridis Palette  
+        r'#2196F3|#FF9800|#4CAF50',  # Material Design Palette
+        r'd3\.schemeCategory10|d3\.schemeSet3|d3\.schemeTableau10'  # D3 color schemes
+    ]
+    has_professional_colors = any(re.search(pattern, code) for pattern in professional_colors)
+    if not has_professional_colors:
+        warnings.append("Visual Design: Consider using professional color palettes")
+    
+    # Check for proper typography
+    typography_patterns = [
+        r'font-size[\'\"]\s*,\s*[\'\"]\d+px',
+        r'font-weight[\'\"]\s*,\s*[\'\"]\d+',
+        r'system-ui|sans-serif'
+    ]
+    has_typography = any(re.search(pattern, code) for pattern in typography_patterns)
+    if not has_typography:
+        warnings.append("Visual Design: Missing typography specifications")
+    
+    # Check for hover interactions
+    hover_patterns = [
+        r'\.on\s*\(\s*[\'"]mouseover[\'"]\s*,',
+        r'\.on\s*\(\s*[\'"]mouseenter[\'"]\s*,',
+        r'hover|mouseover|mouseenter'
+    ]
+    has_hover = any(re.search(pattern, code) for pattern in hover_patterns)
+    if not has_hover:
+        warnings.append("Interactivity: Missing hover effects for better user experience")
+    
+    # Check for MANDATORY transitions with proper timing
+    transition_patterns = [
+        r'\.transition\s*\(\s*\)[^}]*\.duration\s*\(\s*300\s*\)',  # 300ms duration specifically
+        r'\.duration\s*\(\s*300\s*\)[^}]*\.ease',                  # 300ms with easing
+        r'300[^}]*ease.*in.*out|ease.*in.*out[^}]*300'              # 300ms and ease-in-out
+    ]
+    has_proper_transitions = any(re.search(pattern, code) for pattern in transition_patterns)
+    if not has_proper_transitions:
+        missing_features.append("Visual Enhancement: Missing mandatory 300ms ease-in-out transitions")
+    
+    # Check for MANDATORY grid lines
+    grid_patterns = [
+        r'\.tickSizeInner\s*\(\s*-',  # Must use negative values for grid lines
+        r'tickSize\s*\(\s*-',          # Alternative grid line method
+        r'grid.*stroke.*#f1f3f4',      # Check for specific grid styling
+        r'stroke.*#f1f3f4.*grid'       # Alternative order
+    ]
+    has_proper_grid = any(re.search(pattern, code) for pattern in grid_patterns)
+    if not has_proper_grid:
+        missing_features.append("Visual Enhancement: Missing mandatory grid lines with proper styling")
+    
+    # Check for MANDATORY point opacity
+    opacity_patterns = [
+        r'opacity[\'\"]\s*,\s*0\.[7-8]',      # opacity: 0.7 or 0.8
+        r'\.attr\s*\(\s*[\'"]opacity[\'"]\s*,\s*0\.[7-8]',  # .attr("opacity", 0.7)
+        r'\.style\s*\(\s*[\'"]opacity[\'"]\s*,\s*0\.[7-8]', # .style("opacity", 0.7)
+    ]
+    has_proper_opacity = any(re.search(pattern, code) for pattern in opacity_patterns)
+    if not has_proper_opacity:
+        missing_features.append("Visual Enhancement: Missing mandatory point opacity (0.7-0.8)")
+    
+    # Check for MANDATORY hover effects with opacity changes
+    hover_opacity_patterns = [
+        r'mouseover[^}]*opacity[^}]*1\.0',     # Hover changes opacity to 1.0
+        r'mouseenter[^}]*opacity[^}]*1',       # Alternative event
+        r'hover[^}]*opacity[^}]*1\.0'          # CSS hover
+    ]
+    has_hover_opacity = any(re.search(pattern, code) for pattern in hover_opacity_patterns)
+    if not has_hover_opacity:
+        missing_features.append("Interactivity: Missing mandatory hover opacity effects")
+    
+    # Check for MANDATORY tooltips (strict validation)
+    tooltip_patterns = [
+        r'd3\.select\s*\(\s*[\'"]body[\'"]\s*\)[^}]*\.append\s*\(\s*[\'"]div[\'"]\s*\)',  # Must append to body
+        r'\.on\s*\(\s*[\'"]mouseover[\'"]\s*,',                                      # Must have mouseover
+        r'\.on\s*\(\s*[\'"]mousemove[\'"]\s*,',                                       # Must have mousemove  
+        r'\.on\s*\(\s*[\'"]mouseout[\'"]\s*,'                                         # Must have mouseout
+    ]
+    tooltip_requirements_met = sum(1 for pattern in tooltip_patterns if re.search(pattern, code))
+    if tooltip_requirements_met < 4:  # All 4 patterns must be present
+        missing_features.append("Interactivity: Missing mandatory tooltips (must have body append + 3 events)")
+        
+    # Check for safeD3.createAxesWithLabels usage (MANDATORY)
+    axes_helper_patterns = [
+        r'window\.safeD3\.createAxesWithLabels\s*\(',
+        r'safeD3\.createAxesWithLabels\s*\('
+    ]
+    has_axes_helper = any(re.search(pattern, code) for pattern in axes_helper_patterns)
+    if not has_axes_helper:
+        missing_features.append("Axes: Missing mandatory safeD3.createAxesWithLabels usage")
+        
+    # Check for professional grid lines (strict validation)
+    grid_line_patterns = [
+        r'tickSizeInner\s*:\s*-',                  # Must use tickSizeInner with negative values
+        r'gridLineStroke\s*:\s*[\'"]#[e0-9a-fA-F]+[\'"]',  # Must specify grid line color
+        r'gridOpacity\s*:\s*0\.[0-9]'              # Must specify grid opacity
+    ]
+    grid_requirements_met = sum(1 for pattern in grid_line_patterns if re.search(pattern, code))
+    if grid_requirements_met < 2:  # At least 2 of 3 patterns must be present  
+        missing_features.append("Visual Enhancement: Missing professional grid lines configuration")
+    
+    # Check for appropriate margins
+    margin_pattern = re.search(r'margin[^}]*\{[^}]*top:\s*(\d+)', code)
+    if margin_pattern:
+        margin_top = int(margin_pattern.group(1))
+        if margin_top < 50:
+            warnings.append("Layout: Margins too small for professional appearance")
+    else:
+        warnings.append("Layout: Missing proper margin configuration")
+    
     # Calculate validation result
     validation_result = {
         "valid": len(missing_features) == 0,
@@ -351,6 +488,14 @@ def generate_improvement_instructions(validation_results: dict) -> str:
             if "Window resize handler" in features:
                 instructions.append("- Add a window resize handler to update the visualization")
         
+        elif category == "Visual Design":
+            if "Missing descriptive title" in features:
+                instructions.append("- Add a meaningful title that describes the data relationships, e.g., 'Sepal Length vs Width: Comparing Iris Species'")
+            if "Missing legend for data encodings" in features:
+                instructions.append("- Create a legend in the top-right corner explaining color/shape encodings")
+            if "Missing descriptive axis labels" in features:
+                instructions.append("- Add clear, descriptive axis labels with units where appropriate")
+        
         elif category == "Scales and Axes":
             if "Scale creation" in features:
                 instructions.append("- Create appropriate D3 scales (d3.scaleBand, d3.scaleLinear, etc.)")
@@ -367,7 +512,23 @@ def generate_improvement_instructions(validation_results: dict) -> str:
             if "Element styling" in features:
                 instructions.append("- Style elements with fill, stroke, and rounded corners")
         
+        elif category == "Visual Enhancement":
+            if "Missing mandatory grid lines with proper styling" in features:
+                instructions.append("- REQUIRED: Add grid lines using .tickSizeInner(-innerWidth) for y-axis and .tickSizeInner(-innerHeight) for x-axis")
+                instructions.append("- REQUIRED: Style grid lines with stroke: '#f1f3f4', stroke-width: 0.5px, opacity: 0.7")
+            if "Missing mandatory point opacity (0.7-0.8)" in features:
+                instructions.append("- REQUIRED: Set all data points to opacity between 0.7-0.8 using .attr('opacity', 0.7) or .style('opacity', 0.8)")
+            if "Missing mandatory 300ms ease-in-out transitions" in features:
+                instructions.append("- REQUIRED: Add smooth transitions using .transition().duration(300).ease(d3.easeInOut)")
+                instructions.append("- Apply transitions to all interactive elements and data updates")
+        
         elif category == "Interactivity":
+            if "Missing mandatory tooltips" in features:
+                instructions.append("- REQUIRED: Implement tooltips that appear on mouseover with relevant data values")
+                instructions.append("- Position tooltips properly and format content clearly")
+            if "Missing mandatory hover opacity effects" in features:
+                instructions.append("- REQUIRED: Add hover effects that change point opacity from 0.7-0.8 to 1.0")
+                instructions.append("- REQUIRED: Include visual feedback like subtle stroke or glow on hover")
             if "Tooltips" in features:
                 instructions.append("- Add tooltips that show on mouseover/hover")
             if "Highlighting effects" in features:
@@ -467,12 +628,12 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         
         # Enhanced prompt with quality standards matching the sample
         prompt = f"""
-        # D3.js VISUALIZATION CREATION
+        # PROFESSIONAL D3.js VISUALIZATION CREATION
 
-        Create a high-quality D3.js version 7 visualization based on the following:
+        Create a publication-quality D3.js version 7 visualization with modern aesthetics and professional design standards.
         
         ## USER REQUEST:
-        {user_input if user_input else "Create an initial visualization that best represents this data"}
+        {user_input if user_input else "Create an initial visualization that best represents this data with professional styling and clear storytelling"}
         
         ## DATA INFORMATION:
         Schema: {schema_str}
@@ -482,19 +643,55 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
         {json.dumps(data_sample[:5], indent=2)}
         ```
         
-        ## REQUIREMENTS:
+        ## MANDATORY VISUAL DESIGN REQUIREMENTS:
+        
+        ### 1. PROFESSIONAL AESTHETICS & STORYTELLING
+        - **MANDATORY TITLE**: Create a descriptive, insightful title that tells the data story
+        - **MANDATORY LEGEND**: Always include a properly positioned legend explaining data encodings
+        - **MANDATORY AXIS LABELS**: Clear, descriptive axis labels with units where applicable
+        - **DATA INSIGHTS**: Add subtle annotations highlighting key insights or patterns
+        - **Visual Hierarchy**: Use font sizes, weights, and colors to guide attention
+        
+        ### 2. MODERN COLOR PALETTE (Choose ONE consistently):
+        - **Professional Blue Palette**: ["#1f77b4", "#aec7e8", "#ff7f0e", "#ffbb78", "#2ca02c", "#98df8a", "#d62728", "#ff9896"]
+        - **Viridis Palette**: ["#440154", "#482777", "#3f4a8a", "#31678e", "#26838f", "#1f9d8a", "#6cce5a", "#b6de2b", "#fee825"]
+        - **Material Design Palette**: ["#2196F3", "#FF9800", "#4CAF50", "#E91E63", "#9C27B0", "#00BCD4", "#FF5722", "#795548"]
+        - **Ensure 4.5:1 contrast ratio** for accessibility compliance
+        
+        ### 3. TYPOGRAPHY SYSTEM:
+        - **Title**: 18px, font-weight: 600, color: #2c3e50
+        - **Axis Labels**: 14px, font-weight: 500, color: #34495e  
+        - **Tick Labels**: 12px, font-weight: 400, color: #7f8c8d
+        - **Legend**: 13px, font-weight: 400, color: #2c3e50
+        - **Tooltips**: 12px, font-weight: 400, color: #2c3e50
+        - **Font Family**: Use "system-ui, -apple-system, sans-serif" for all text
+        
+        ### 4. LAYOUT & SPACING SYSTEM:
+        - **Margins**: Use generous margins - minimum {{top: 60, right: 120, bottom: 80, left: 80}}
+        - **Element Spacing**: 12px between related elements, 24px between sections
+        - **Point Size**: For scatter plots, use 4-6px radius with 0.8 opacity
+        - **Stroke Width**: Use 1.5px for important elements, 0.5px for grid lines
+        
+        ### 5. MANDATORY VISUAL ENHANCEMENTS:
+        - **REQUIRED Grid Lines**: MUST implement subtle grid lines using .tickSizeInner(-width) and .tickSizeInner(-height) with stroke: #f1f3f4 and stroke-width: 0.5px
+        - **REQUIRED Point Opacity**: All data points MUST have opacity between 0.7-0.8 to handle overlapping data
+        - **REQUIRED Hover Effects**: MUST implement mouseover events that increase opacity to 1.0 and add visual feedback
+        - **REQUIRED Smooth Animations**: All transitions MUST use 300ms ease-in-out duration
+        - **REQUIRED Point Sizing**: Data points MUST be appropriately sized (4-6px radius for scatter plots) with proper stroke-width
+        - **REQUIRED Professional Spacing**: Elements MUST have proper spacing and not overlap or crowd each other
+        
+        ## TECHNICAL REQUIREMENTS:
         1. Create a function named createVisualization(data, svgElement) that follows professional D3 standards
            - IMPORTANT: svgElement parameter is a D3 selection, not a raw DOM element
            - Always use svgElement.append() instead of d3.select("svg").append()
            - You can use window.safeD3 for safer scale and axis creation
         
         2. Include a comprehensive configuration object with:
-           - Proper margins (top, right, bottom, left)
+           - Professional margins and spacing as specified above
            - Width and height derived from svgElement
-           - Transition durations and easing functions
-           - Color scales
-           - Tooltip settings
-           - Animation parameters
+           - Professional color palette selection
+           - Typography system implementation
+           - Animation and transition settings
         
         3. Implement responsive design:
            - Get container dimensions from svgElement using .attr("width") and .attr("height")
@@ -502,45 +699,212 @@ def generate_d3_code(df: pd.DataFrame, api_key: str, user_input: str = "") -> st
            - Handle window resize events
            - Add preserveAspectRatio
         
-        4. Create professional-looking axes:
-           - Properly styled grid lines
-           - Formatted tick values
-           - Rotated labels if needed
-           - Smooth transitions for updates
-           - IMPORTANT: Ensure axes are aligned with the visualization by using a consistent transformation
-           - Create a container group (g element) for both axes and visualization that is transformed using margins
+        4. **MANDATORY PROFESSIONAL AXES WITH GRID LINES**:
+           
+        ## CRITICAL: ALWAYS USE safeD3.createAxesWithLabels() - MANUAL AXIS CREATION IS FORBIDDEN
+        **You MUST use window.safeD3.createAxesWithLabels() for consistent professional axes!**
         
-        5. Add rich interactivity:
-           - Detailed tooltips with all relevant data
-           - Smooth transitions and animations
-           - Highlight effects on hover
-           - Click interactions for additional details
-           - Zoom and brush functionality if appropriate
+        ### MANDATORY Axes Creation Pattern:
+        ```javascript
+        // REQUIRED: Use this exact pattern - manual axis creation will cause validation failure
+        const axesResult = window.safeD3.createAxesWithLabels(g, xScale, yScale, {{
+            xLabel: "Your X Label (units)",
+            yLabel: "Your Y Label (units)", 
+            width: width,
+            height: height,
+            margin: margin,
+            // MANDATORY: Grid line configuration
+            tickSizeInner: -height,     // Creates grid lines across full height
+            tickSizeOuter: 0,           // Removes outer tick extensions
+            tickPadding: 10,            // Space between ticks and labels
+            gridLineStroke: "#e0e0e0",  // Professional gray grid lines
+            gridLineWidth: 0.5,         // Thin grid lines
+            gridOpacity: 0.7            // Subtle grid opacity
+        }});
+        ```
+        
+        ### Grid Line Requirements (MANDATORY):
+           - MUST use exactly this safeD3.createAxesWithLabels() pattern - validation will FAIL for manual axis creation
+           - Grid lines MUST span full visualization area using tickSizeInner: -height for X-axis, -width for Y-axis  
+           - Grid styling MUST be: stroke: #e0e0e0, stroke-width: 0.5px, opacity: 0.7 for professional appearance
+           - Tick values MUST be formatted with .nice() for rounded values (4.0, 5.0, 6.0 instead of 4.3, 5.7, 6.1)
+           - Axis labels MUST be descriptive with units where applicable
+           - Axes MUST properly join at origin with clean, professional appearance
+           - Smooth transitions for all updates (300ms ease-in-out)
+        
+        5. Add rich interactivity with MANDATORY professional styling:
+           
+        ## CRITICAL TOOLTIP IMPLEMENTATION (MANDATORY):
+        **NEVER append tooltip div to SVG - this is the #1 tooltip failure cause!**
+        
+        ### Required Tooltip Creation Pattern:
+        ```javascript
+        // MANDATORY: Append to body, NOT svg
+        const tooltip = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("position", "absolute")
+            .style("opacity", 0)
+            .style("pointer-events", "none")  // CRITICAL: prevents tooltip interference
+            .style("background", "#fff")
+            .style("padding", "8px")
+            .style("border", "1px solid #ccc")
+            .style("border-radius", "4px")
+            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.1)")
+            .style("font-size", "12px")
+            .style("z-index", "1000");
+        ```
+        
+        ### MANDATORY 3-Event Tooltip Pattern:
+        ```javascript
+        .on('mouseover', function(event, d) {{
+            console.log("Tooltip mouseover triggered", d); // Required debugging
+            tooltip.transition().duration(200).style('opacity', 1);
+            tooltip.html(`Data: ${{d.value}}`); // Set content
+        }})
+        .on('mousemove', function(event, d) {{
+            tooltip
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 10) + 'px');
+        }})
+        .on('mouseout', function(event, d) {{
+            tooltip.transition().duration(200).style('opacity', 0);
+        }});
+        ```
+        
+        ### MANDATORY Requirements:
+           - MUST use exactly this 3-event pattern (mouseover/mousemove/mouseout)
+           - MUST append tooltip to d3.select("body"), NEVER to svg
+           - MUST include console.log for debugging tooltip events
+           - MUST use event.pageX/pageY for positioning (not d3.event in v6+)
+           - MUST set pointer-events: none to prevent tooltip interference
+           - MUST implement hover effects that change opacity from 0.7-0.8 to 1.0
+           - MUST add visual feedback on hover (subtle stroke or glow effect)
+           - All transitions MUST use .transition().duration(300).ease(d3.easeInOut)
+           - Tooltips MUST include relevant data values and proper formatting
         
         6. Include accessibility features:
-           - ARIA attributes
-           - Role descriptions
-           - Keyboard navigation if applicable
+           - ARIA attributes with meaningful descriptions
+           - Role descriptions for screen readers
+           - High contrast color combinations (4.5:1 minimum)
         
-        7. Add basic error handling:
-           - Check for data existence before using it
-           - Provide sensible fallbacks when needed
+        7. Add comprehensive error handling:
+           - Check for data existence and validity
+           - Provide graceful fallbacks for missing or invalid data
         
-        ## SPECIAL HELPER METHODS
-        You can use these helper methods in your code for more robust visualizations:
+        ## DATA STORYTELLING REQUIREMENTS (MANDATORY):
         
-        - window.safeD3.createLinearScale(domain, range) - Creates a scale with fallbacks
-        - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates an axis with fallbacks  
-        - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely gets a property value
-        - window.safeD3.createAxesWithLabels(svgElement, xScale, yScale, options) - Creates properly positioned axes with labels
+        ### Chart Type Intelligence:
+        - **Scatter Plots**: For relationships between continuous variables, always include trend lines or regression if patterns exist
+        - **Comparative Data**: When "source" column exists, use it for color encoding and include clear legend
+        - **Species/Categories**: Use consistent, distinguishable colors and shapes for different categories
+        - **Time Series**: If temporal data exists, emphasize trends with appropriate scales and annotations
         
-        ## AXES ALIGNMENT
-        To ensure your axes are properly aligned with the visualization:
-        1. Create a main container group: `const g = svgElement.append("g").attr("transform", translate(margin.left, margin.top))`
-        2. Create an axes container within this group: `const axesG = g.append("g").attr("class", "axes-container")`
-        3. Add the x-axis at the bottom of the chart: `axesG.append("g").attr("class", "x-axis").attr("transform", translate(0, height))`
-        4. Add the y-axis at the left of the chart: `axesG.append("g").attr("class", "y-axis")`
-        5. Add visualization elements to the same container g
+        ### Smart Title Generation (MANDATORY):
+        - Analyze the data relationships and create meaningful titles like:
+          - "Sepal Length vs Width: Comparing Iris Species Across Datasets"
+          - "Distribution Patterns in [Variable Name] by [Category]"
+          - "Relationship Between [X Variable] and [Y Variable]"
+        - Avoid generic titles like "Scatter Plot" or "Data Visualization"
+        
+        ### Legend Requirements (MANDATORY):
+        - Position legend in top-right corner with 10px margin from edges
+        - Include clear labels for all color/shape encodings
+        - Use the same colors/symbols as in the visualization
+        - Add legend title describing what the encoding represents
+        
+        ## CRITICAL SCALE DOMAIN REQUIREMENTS (MANDATORY):
+        **NEVER USE HARDCODED SCALE DOMAINS** - This is the most common cause of data misalignment.
+        
+        ### CORRECT Scale Creation Pattern (Research-Based):
+        ```javascript
+        // CRITICAL: Convert strings to numbers with + operator (most common alignment issue)
+        const xExtent = d3.extent(data, d => +window.safeD3.getValue(d, "column_name", 0));
+        const yExtent = d3.extent(data, d => +window.safeD3.getValue(d, "column_name", 0));
+        
+        // MANDATORY: Validate extents before creating scales
+        console.log("X extent:", xExtent, "Y extent:", yExtent); // Required debugging
+        
+        // CRITICAL: Filter out invalid values (NaN, null, undefined) before extent calculation
+        const cleanData = data.filter(d => {{
+            const x = +window.safeD3.getValue(d, "x_column", 0);
+            const y = +window.safeD3.getValue(d, "y_column", 0);
+            return !isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y);
+        }});
+        
+        const xScale = window.safeD3.createLinearScale(xExtent, [0, width])
+            .nice(); // Round to nice values but validate doesn't extend too far
+        const yScale = window.safeD3.createLinearScale(yExtent, [height, 0])  // CRITICAL: [height, 0] for screen coordinates
+            .nice();
+            
+        // MANDATORY: Log final domain/range for debugging
+        console.log("X scale domain:", xScale.domain(), "range:", xScale.range());
+        console.log("Y scale domain:", yScale.domain(), "range:", yScale.range());
+        ```
+        
+        ### WRONG - Never Do This:
+        ```javascript
+        // WRONG: Hardcoded domains cause misalignment
+        const xScale = window.safeD3.createLinearScale([4, 8], [0, width]); // DON'T DO THIS
+        const yScale = window.safeD3.createLinearScale([1, 5], [height, 0]); // DON'T DO THIS
+        
+        // WRONG: Missing data type conversion (treats "5.2" as string)
+        const xExtent = d3.extent(data, d => window.safeD3.getValue(d, "column_name", 0)); // Missing +
+        
+        // WRONG: Y-axis range not inverted for screen coordinates
+        const yScale = window.safeD3.createLinearScale(yExtent, [0, height]); // Should be [height, 0]
+        ```
+        
+        ### MANDATORY Scale Requirements (Professional Ranges Like Example):
+        ```javascript
+        // PROFESSIONAL DOMAIN CALCULATION - Match the example visualization quality
+        const cleanData = data.filter(d => {{
+            const x = +window.safeD3.getValue(d, "x_column", 0);
+            const y = +window.safeD3.getValue(d, "y_column", 0);
+            return !isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y);
+        }});
+        
+        // CRITICAL: Calculate extents with proper data type conversion
+        const xExtent = d3.extent(cleanData, d => +window.safeD3.getValue(d, "x_column", 0));
+        const yExtent = d3.extent(cleanData, d => +window.safeD3.getValue(d, "y_column", 0));
+        
+        // MANDATORY: Add 5% padding to prevent data points touching axis edges
+        const xPadding = (xExtent[1] - xExtent[0]) * 0.05;
+        const yPadding = (yExtent[1] - yExtent[0]) * 0.05;
+        const xDomain = [xExtent[0] - xPadding, xExtent[1] + xPadding];
+        const yDomain = [yExtent[0] - yPadding, yExtent[1] + yPadding];
+        
+        // PROFESSIONAL SCALE CREATION with .nice() for clean tick marks
+        const xScale = window.safeD3.createLinearScale(xDomain, [0, width]).nice();
+        const yScale = window.safeD3.createLinearScale(yDomain, [height, 0]).nice();
+        
+        // MANDATORY: Debug logging to verify professional ranges
+        console.log("Professional X domain:", xScale.domain(), "Y domain:", yScale.domain());
+        ```
+        
+        ### Requirements for Consistent Professional Visualization:
+        - ALWAYS use + operator to convert string values to numbers: `+window.safeD3.getValue()`
+        - ALWAYS filter out NaN/null/undefined values before calculating extents  
+        - ALWAYS use [height, 0] range for Y-axis (screen coordinate inversion)
+        - ALWAYS add 5% padding to domains to prevent data points touching axis edges
+        - ALWAYS use .nice() for clean, rounded tick marks like the example (4.0, 5.0, 6.0)
+        - ALWAYS add console.log statements for debugging domain/range values
+        - NEVER use hardcoded domains like [4, 8] or [1, 5]
+        
+        ## ENHANCED HELPER METHODS
+        Use these helper methods for professional-quality visualizations:
+        
+        - window.safeD3.createLinearScale(domain, range) - Creates scales with fallbacks and nice formatting
+        - window.safeD3.createAxis(scaleOrAxisType, tickCount) - Creates axes with professional styling
+        - window.safeD3.getValue(dataPoint, property, defaultValue) - Safely accesses data properties
+        - window.safeD3.createAxesWithLabels(svgElement, xScale, yScale, options) - Creates professionally positioned axes with labels
+        
+        ## PROFESSIONAL AXES IMPLEMENTATION:
+        1. Create main container: `const g = svgElement.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")")`
+        2. Add title: `svgElement.append("text").attr("x", width/2).attr("y", 30).attr("text-anchor", "middle").style("font-size", "18px").style("font-weight", "600").style("fill", "#2c3e50").text("[Your Generated Title]")`
+        3. Create axes with proper styling and labels
+        4. Add legend in top-right corner
+        5. Implement grid lines with subtle styling
         
         ## OUTPUT RULES (CRITICALLY IMPORTANT):
         - The code MUST start with 'function createVisualization(data, svgElement) {{'
@@ -840,44 +1204,186 @@ def get_visualization_html(d3_code: str) -> str:
         <title>D3 Visualization</title>
         <script src="https://d3js.org/d3.v7.min.js"></script>
         <style>
+            /* Professional Visualization Container */
             #visualization {{
                 width: 100%;
                 height: {VISUALIZATION_HEIGHT}px;
                 margin: 0 auto;
-                background-color: #ffffff;
-                border-radius: 5px;
-                box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+                background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08);
                 overflow: hidden;
                 position: relative;
+                border: 1px solid rgba(0,0,0,0.06);
+                font-family: "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", sans-serif;
             }}
+            
+            /* Enhanced SVG Styling */
             svg {{
                 width: 100%;
                 height: 100%;
                 background-color: white;
+                font-family: "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", sans-serif;
             }}
             
+            /* Professional Typography Classes */
+            .viz-title {{
+                font-size: 18px;
+                font-weight: 600;
+                fill: #2c3e50;
+                text-anchor: middle;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            .axis-label {{
+                font-size: 14px;
+                font-weight: 500;
+                fill: #34495e;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            .tick-label {{
+                font-size: 12px;
+                font-weight: 400;
+                fill: #7f8c8d;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            .legend-text {{
+                font-size: 13px;
+                font-weight: 400;
+                fill: #2c3e50;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            .legend-title {{
+                font-size: 14px;
+                font-weight: 500;
+                fill: #2c3e50;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            /* Enhanced Grid Lines */
+            .grid line {{
+                stroke: #f1f3f4;
+                stroke-width: 0.5px;
+                shape-rendering: crispEdges;
+            }}
+            
+            .grid path {{
+                stroke-width: 0;
+            }}
+            
+            /* Professional Axis Styling */
+            .axis {{
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            .axis line {{
+                stroke: #dee2e6;
+                shape-rendering: crispEdges;
+            }}
+            
+            .axis path {{
+                stroke: #dee2e6;
+                fill: none;
+            }}
+            
+            .axis text {{
+                fill: #495057;
+                font-size: 12px;
+            }}
+            
+            /* Enhanced Tooltip */
             .tooltip {{
                 position: absolute;
-                background: rgba(255, 255, 255, 0.95);
-                padding: 10px;
-                border-radius: 5px;
-                box-shadow: 0 0 10px rgba(0,0,0,0.25);
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                padding: 12px 16px;
+                border-radius: 8px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08);
+                border: 1px solid rgba(0,0,0,0.08);
                 pointer-events: none;
-                font-family: Arial, sans-serif;
+                font-family: "system-ui", "-apple-system", sans-serif;
                 font-size: 12px;
-                z-index: 10;
+                font-weight: 400;
+                color: #2c3e50;
+                z-index: 1000;
+                line-height: 1.4;
+                max-width: 200px;
+                transition: opacity 0.2s ease-in-out;
             }}
             
+            .tooltip .tooltip-title {{
+                font-weight: 600;
+                color: #1a1a1a;
+                margin-bottom: 4px;
+            }}
+            
+            .tooltip .tooltip-content {{
+                color: #4a5568;
+                font-size: 11px;
+            }}
+            
+            /* Professional Color Palettes as CSS Variables */
+            :root {{
+                --color-primary: #2196F3;
+                --color-secondary: #FF9800;
+                --color-success: #4CAF50;
+                --color-danger: #E91E63;
+                --color-warning: #FF5722;
+                --color-info: #00BCD4;
+                --color-purple: #9C27B0;
+                --color-brown: #795548;
+                
+                --color-blue-1: #1f77b4;
+                --color-blue-2: #aec7e8;
+                --color-orange-1: #ff7f0e;
+                --color-orange-2: #ffbb78;
+                --color-green-1: #2ca02c;
+                --color-green-2: #98df8a;
+                --color-red-1: #d62728;
+                --color-red-2: #ff9896;
+                
+                --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+                --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
+                --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+            }}
+            
+            /* Interactive Elements */
+            .data-point {{
+                cursor: pointer;
+                transition: all 0.3s ease-in-out;
+            }}
+            
+            .data-point:hover {{
+                filter: brightness(1.1);
+                stroke-width: 2px;
+                stroke: rgba(0,0,0,0.3);
+            }}
+            
+            .legend-item {{
+                cursor: pointer;
+                transition: opacity 0.3s ease-in-out;
+            }}
+            
+            .legend-item:hover {{
+                opacity: 0.7;
+            }}
+            
+            /* Enhanced Error Messages */
             .error-message {{
-                color: #d9534f;
+                color: #e53e3e;
+                background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+                border: 1px solid #feb2b2;
                 padding: 20px;
-                border: 1px solid #d9534f;
-                border-radius: 5px;
-                background-color: #f9f2f2;
+                border-radius: 8px;
                 margin: 20px;
-                font-family: Arial, sans-serif;
+                font-family: "system-ui", "-apple-system", sans-serif;
+                box-shadow: 0 2px 8px rgba(229, 62, 62, 0.15);
             }}
             
+            /* Professional Fallback Visualization */
             .fallback-viz {{
                 width: 100%;
                 height: 100%;
@@ -885,7 +1391,35 @@ def get_visualization_html(d3_code: str) -> str:
                 justify-content: center;
                 align-items: center;
                 flex-direction: column;
-                background-color: #f8f9fa;
+                background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+                color: #4a5568;
+                font-family: "system-ui", "-apple-system", sans-serif;
+            }}
+            
+            /* Animation Classes */
+            .fade-in {{
+                animation: fadeIn 0.6s ease-in-out;
+            }}
+            
+            @keyframes fadeIn {{
+                from {{ opacity: 0; transform: translateY(20px); }}
+                to {{ opacity: 1; transform: translateY(0); }}
+            }}
+            
+            .slide-in {{
+                animation: slideIn 0.8s ease-out;
+            }}
+            
+            @keyframes slideIn {{
+                from {{ opacity: 0; transform: translateX(-30px); }}
+                to {{ opacity: 1; transform: translateX(0); }}
+            }}
+            
+            /* Responsive Design */
+            @media (max-width: 768px) {{
+                .viz-title {{ font-size: 16px; }}
+                .axis-label {{ font-size: 12px; }}
+                .tooltip {{ font-size: 11px; padding: 8px 12px; }}
             }}
         </style>
     </head>
@@ -964,21 +1498,50 @@ def get_visualization_html(d3_code: str) -> str:
                 // Safe scale creation that handles missing/invalid domains
                 createLinearScale: function(domain, range) {{
                     try {{
-                        // Use default domain if missing or invalid
-                        const safeDomain = (Array.isArray(domain) && domain.length === 2 && 
-                                           !isNaN(domain[0]) && !isNaN(domain[1])) 
-                            ? domain 
-                            : [0, 100];
+                        // Debug logging to identify issues
+                        console.log("safeD3.createLinearScale called with:", {{ domain, range }});
                         
-                        // Use default range if missing or invalid
-                        const safeRange = (Array.isArray(range) && range.length === 2 &&
-                                          !isNaN(range[0]) && !isNaN(range[1]))
-                            ? range
-                            : [0, 500];
+                        // Enhanced domain validation
+                        let safeDomain = [0, 100];  // fallback
+                        if (Array.isArray(domain) && domain.length === 2) {{
+                            const [min, max] = domain;
+                            // Convert to numbers if they're not already
+                            const numMin = typeof min === 'number' ? min : parseFloat(min);
+                            const numMax = typeof max === 'number' ? max : parseFloat(max);
                             
-                        return d3.scaleLinear().domain(safeDomain).range(safeRange);
+                            // Check if both values are valid numbers and min < max
+                            if (!isNaN(numMin) && !isNaN(numMax) && isFinite(numMin) && isFinite(numMax) && numMin !== numMax) {{
+                                safeDomain = [numMin, numMax];
+                                console.log("Using provided domain:", safeDomain);
+                            }} else {{
+                                console.warn("Invalid domain values - min:", numMin, "max:", numMax, "using fallback [0,100]");
+                            }}
+                        }} else {{
+                            console.warn("Domain is not a valid array of length 2:", domain, "using fallback [0,100]");
+                        }}
+                        
+                        // Enhanced range validation  
+                        let safeRange = [0, 500];  // fallback
+                        if (Array.isArray(range) && range.length === 2) {{
+                            const [start, end] = range;
+                            const numStart = typeof start === 'number' ? start : parseFloat(start);
+                            const numEnd = typeof end === 'number' ? end : parseFloat(end);
+                            
+                            if (!isNaN(numStart) && !isNaN(numEnd) && isFinite(numStart) && isFinite(numEnd)) {{
+                                safeRange = [numStart, numEnd];
+                                console.log("Using provided range:", safeRange);
+                            }} else {{
+                                console.warn("Invalid range values - start:", numStart, "end:", numEnd, "using fallback [0,500]");
+                            }}
+                        }} else {{
+                            console.warn("Range is not a valid array of length 2:", range, "using fallback [0,500]");
+                        }}
+                            
+                        const scale = d3.scaleLinear().domain(safeDomain).range(safeRange);
+                        console.log("Created scale with domain:", scale.domain(), "range:", scale.range());
+                        return scale;
                     }} catch (e) {{
-                        console.warn("Error creating scale:", e);
+                        console.error("Error creating linear scale:", e);
                         return d3.scaleLinear().domain([0, 100]).range([0, 500]);
                     }}
                 }},
@@ -1101,7 +1664,23 @@ def get_visualization_html(d3_code: str) -> str:
                 // Safe data accessor that handles missing properties
                 getValue: function(d, property, defaultValue = 0) {{
                     if (!d) return defaultValue;
-                    return d[property] !== undefined ? d[property] : defaultValue;
+                    
+                    const value = d[property];
+                    if (value === undefined || value === null) return defaultValue;
+                    
+                    // If it's already a number, return it
+                    if (typeof value === 'number') return value;
+                    
+                    // If it's a string that represents a number, convert it
+                    if (typeof value === 'string') {{
+                        const numValue = parseFloat(value.trim());
+                        if (!isNaN(numValue) && isFinite(numValue)) {{
+                            return numValue;
+                        }}
+                    }}
+                    
+                    // For non-numeric values, return the original value (e.g., for categorical data)
+                    return value;
                 }},
                 
                 // Safe selection method
@@ -1169,36 +1748,64 @@ def get_visualization_html(d3_code: str) -> str:
                                 .attr("class", "axes-container")
                                 .attr("transform", "translate(" + config.margin.left + "," + config.margin.top + ")");
                             
-                            // Create x-axis
-                            const xAxis = d3.axisBottom(xScale).ticks(config.ticksX);
+                            // PROFESSIONAL X-AXIS with MANDATORY grid lines
+                            const xAxis = d3.axisBottom(xScale)
+                                .ticks(config.ticksX || 5)
+                                .tickSizeInner(config.tickSizeInner || -innerHeight)  // MANDATORY: Grid lines across full height
+                                .tickSizeOuter(config.tickSizeOuter || 0)             // Remove outer tick extensions  
+                                .tickPadding(config.tickPadding || 10);               // Professional spacing
+                                
                             const xAxisG = g.append("g")
                                 .attr("class", "x-axis")
                                 .attr("transform", "translate(0," + innerHeight + ")")
                                 .call(xAxis);
+                                
+                            // MANDATORY: Style grid lines professionally
+                            xAxisG.selectAll(".tick line")
+                                .style("stroke", config.gridLineStroke || "#e0e0e0")
+                                .style("stroke-width", config.gridLineWidth || 0.5)
+                                .style("opacity", config.gridOpacity || 0.7);
                             
-                            // Add x-axis label
+                            // Add x-axis label with professional styling
                             xAxisG.append("text")
                                 .attr("class", "x-axis-label")
                                 .attr("x", innerWidth / 2)
                                 .attr("y", 40)
-                                .attr("fill", "black")
+                                .attr("fill", "#2c3e50")
                                 .attr("text-anchor", "middle")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .style("font-family", "system-ui, -apple-system, sans-serif")
                                 .text(config.xLabel);
                             
-                            // Create y-axis
-                            const yAxis = d3.axisLeft(yScale).ticks(config.ticksY);
+                            // PROFESSIONAL Y-AXIS with MANDATORY grid lines
+                            const yAxis = d3.axisLeft(yScale)
+                                .ticks(config.ticksY || 5)
+                                .tickSizeInner(config.tickSizeInner || -innerWidth)   // MANDATORY: Grid lines across full width
+                                .tickSizeOuter(config.tickSizeOuter || 0)             // Remove outer tick extensions
+                                .tickPadding(config.tickPadding || 10);               // Professional spacing
+                                
                             const yAxisG = g.append("g")
                                 .attr("class", "y-axis")
                                 .call(yAxis);
+                                
+                            // MANDATORY: Style grid lines professionally  
+                            yAxisG.selectAll(".tick line")
+                                .style("stroke", config.gridLineStroke || "#e0e0e0")
+                                .style("stroke-width", config.gridLineWidth || 0.5)
+                                .style("opacity", config.gridOpacity || 0.7);
                             
-                            // Add y-axis label
+                            // Add y-axis label with professional styling
                             yAxisG.append("text")
                                 .attr("class", "y-axis-label")
                                 .attr("transform", "rotate(-90)")
                                 .attr("x", -innerHeight / 2)
                                 .attr("y", -40)
-                                .attr("fill", "black")
+                                .attr("fill", "#2c3e50")
                                 .attr("text-anchor", "middle")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .style("font-family", "system-ui, -apple-system, sans-serif")
                                 .text(config.yLabel);
                             
                             // Return references to axes and dimensions
@@ -2358,8 +2965,76 @@ def generate_and_validate_d3_code(df: pd.DataFrame, api_key: str, user_input: st
     if user_input is None:
         user_input = ""
     
-    # Generate the initial code with user input
-    initial_code = generate_d3_code(df, api_key, user_input)
+    # ============ INTELLIGENT DATA ANALYSIS ============
+    # Analyze data characteristics to provide better context to AI
+    
+    # Data shape and structure analysis
+    num_rows, num_cols = df.shape
+    column_types = df.dtypes.to_dict()
+    
+    # Identify categorical vs numerical columns
+    categorical_cols = []
+    numerical_cols = []
+    for col, dtype in column_types.items():
+        if dtype == 'object' or df[col].nunique() < 10:
+            categorical_cols.append(col)
+        else:
+            numerical_cols.append(col)
+    
+    # Identify key relationship columns
+    has_source_column = 'source' in df.columns.str.lower()
+    has_species_column = any('species' in col.lower() for col in df.columns)
+    has_category_column = len(categorical_cols) > 0
+    
+    # Generate data insights for AI context
+    data_insights = []
+    if has_source_column:
+        data_insights.append("COMPARATIVE ANALYSIS: Dataset contains multiple sources for comparison")
+    if has_species_column:
+        data_insights.append("SPECIES ANALYSIS: Dataset contains species/category information")
+    if len(numerical_cols) >= 2:
+        data_insights.append(f"RELATIONSHIP ANALYSIS: Multiple numerical variables available ({len(numerical_cols)} columns)")
+    if num_rows > 100:
+        data_insights.append("LARGE DATASET: Consider data aggregation or sampling techniques")
+    
+    # Suggest optimal visualization approaches based on data
+    viz_suggestions = []
+    if len(numerical_cols) >= 2 and has_category_column:
+        viz_suggestions.append("RECOMMENDED: Scatter plot with categorical color encoding")
+    if has_source_column and len(numerical_cols) >= 1:
+        viz_suggestions.append("RECOMMENDED: Comparative visualization showing differences between sources")
+    if len(categorical_cols) >= 1 and len(numerical_cols) >= 1:
+        viz_suggestions.append("RECOMMENDED: Group-based analysis (box plots, violin plots, or grouped bar charts)")
+    
+    # Create enhanced context for AI
+    data_context = f"""
+    
+    ## INTELLIGENT DATA ANALYSIS CONTEXT:
+    
+    ### Dataset Characteristics:
+    - **Rows**: {num_rows:,} records
+    - **Columns**: {num_cols} total ({len(numerical_cols)} numerical, {len(categorical_cols)} categorical)
+    - **Numerical Columns**: {numerical_cols}
+    - **Categorical Columns**: {categorical_cols}
+    
+    ### Key Data Insights:
+    {chr(10).join(f"- {insight}" for insight in data_insights)}
+    
+    ### Visualization Recommendations:
+    {chr(10).join(f"- {suggestion}" for suggestion in viz_suggestions)}
+    
+    ### Data Quality Notes:
+    - **Missing Values**: {df.isnull().sum().sum()} total missing values
+    - **Unique Categories**: {', '.join([f"{col}: {df[col].nunique()}" for col in categorical_cols[:3]])}
+    
+    IMPORTANT: Use this analysis to create the most meaningful and appropriate visualization type for this specific dataset.
+    """
+    
+    # Enhance user input with data context
+    enhanced_user_input = user_input + data_context if user_input else "Create the most appropriate and meaningful visualization for this dataset based on the data analysis above" + data_context
+    
+    # Generate the initial code with enhanced user input
+    initial_code = generate_d3_code(df, api_key, enhanced_user_input)
     cleaned_code = clean_d3_response(initial_code)
     
     if validate_d3_code(cleaned_code):
